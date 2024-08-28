@@ -1,0 +1,51 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+        <PackageReference Include="AutoMapper" Version="13.0.1"/>
+        <PackageReference Include="Ben.Demystifier" Version="0.4.1"/>
+        <PackageReference Include="CSharpFunctionalExtensions" Version="2.42.5"/>
+        <PackageReference Include="EPPlus" Version="7.2.2"/>
+        <PackageReference Include="IdentityModel" Version="7.0.0"/>
+        <PackageReference Include="Mediator.Abstractions" Version="3.0.0-preview.27"/>
+        <PackageReference Include="Mediator.SourceGenerator" Version="3.0.0-preview.27">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.1"/>
+        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.8"/>
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0"/>
+        <PackageReference Include="Microsoft.OpenApi" Version="1.6.17"/>
+        <PackageReference Include="Newtonsoft.Json" Version="13.0.3"/>
+        <PackageReference Include="Nito.AsyncEx" Version="5.1.2"/>
+        <PackageReference Include="Novell.Directory.Ldap.NETStandard" Version="3.6.0"/>
+        <PackageReference Include="NSwag.Core" Version="14.1.0"/>
+        <PackageReference Include="NSwag.CodeGeneration" Version="14.1.0"/>
+        <PackageReference Include="NSwag.CodeGeneration.TypeScript" Version="14.1.0"/>
+        <PackageReference Include="NSwag.Generation" Version="14.1.0"/>
+        <PackageReference Include="NSwag.Generation.AspNetCore" Version="14.1.0"/>
+        <PackageReference Include="NSwag.Generation.WebApi" Version="14.1.0"/>
+        <PackageReference Include="NSwag.AspNetCore" Version="14.1.0"/>
+        <PackageReference Include="NSwag.MSBuild" Version="14.1.0">
+          <PrivateAssets>all</PrivateAssets>
+          <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="Polly" Version="8.4.1"/>
+        <PackageReference Include="Serilog" Version="4.0.1"/>
+        <PackageReference Include="Serilog.AspNetCore" Version="8.0.2"/>
+        <PackageReference Include="StackExchange.Redis" Version="2.8.0"/>
+        <PackageReference Include="Westwind.Utilities" Version="5.0.8"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\BuildingBlocks.Exceptions\BuildingBlocks.Exceptions.csproj"/>
+    </ItemGroup>
+
+</Project>

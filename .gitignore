@@ -1,0 +1,9 @@
+bin/
+obj/
+/packages/
+riderModule.iml
+/_ReSharper.Caches/
+BuildingBlocks.Ussd/
+BuildingBlocks.Ussd.Sdk/
+_backups/
+.idea

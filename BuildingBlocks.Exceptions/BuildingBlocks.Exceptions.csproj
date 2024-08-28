@@ -1,0 +1,18 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <PackageReference Include="AspNetCore.Mvc.Routes.DebuggingLoggerMiddleware" Version="1.0.0" />
+      <PackageReference Include="Ben.Demystifier" Version="0.4.1" />
+      <PackageReference Include="CSharpFunctionalExtensions" Version="2.42.5" />
+      <PackageReference Include="Serilog" Version="4.0.1" />
+      <PackageReference Include="StackExchange.Redis" Version="2.8.0" />
+      <PackageReference Include="Westwind.Utilities" Version="5.0.8" />
+    </ItemGroup>
+
+</Project>

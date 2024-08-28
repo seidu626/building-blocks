@@ -1,0 +1,51 @@
+﻿// Decompiled with JetBrains decompiler
+// Type: BuildingBlocks.Filters.AuthorizeCheckOperationFilter
+// Assembly: BuildingBlocks, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null
+// MVID: 8587CF18-BE3D-4726-89FF-4AF7AAC01FA5
+// Assembly location: C:\Users\420919\Repositories\STS\Api\BuildingBlocks.dll
+
+#nullable disable
+using System.Reflection;
+using BuildingBlocks.Configuration;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.OpenApi.Models;
+using Swashbuckle.AspNetCore.SwaggerGen;
+
+namespace BuildingBlocks.Filters;
+
+public class AuthorizeCheckOperationFilter : IOperationFilter
+{
+  private readonly IdentityApiConfig IdentityApiConfig;
+
+  public AuthorizeCheckOperationFilter(IdentityApiConfig identityApiConfig)
+  {
+    this.IdentityApiConfig = identityApiConfig;
+  }
+
+  public void Apply(OpenApiOperation operation, OperationFilterContext context)
+  {
+    if ((((MemberInfo) context.MethodInfo).DeclaringType.GetCustomAttributes(true).OfType<AuthorizeAttribute>().Any<AuthorizeAttribute>() ? 1 : (((MemberInfo) context.MethodInfo).GetCustomAttributes(true).OfType<AuthorizeAttribute>().Any<AuthorizeAttribute>() ? 1 : 0)) == 0)
+      return;
+    operation.Responses.Add("401", new OpenApiResponse()
+    {
+      Description = "Unauthorized"
+    });
+    operation.Responses.Add("403", new OpenApiResponse()
+    {
+      Description = "Forbidden"
+    });
+    OpenApiOperation openApiOperation = operation;
+    List<OpenApiSecurityRequirement> securityRequirementList = new List<OpenApiSecurityRequirement>();
+    OpenApiSecurityRequirement securityRequirement = new OpenApiSecurityRequirement();
+    securityRequirement[new OpenApiSecurityScheme()
+    {
+      Reference = new OpenApiReference()
+      {
+        Type = new ReferenceType?(ReferenceType.SecurityScheme),
+        Id = "oauth2"
+      }
+    }] = (IList<string>) this.IdentityApiConfig.Scopes.Select<KeyValuePair<string, string>, string>((Func<KeyValuePair<string, string>, string>) (x => x.Key)).ToList<string>();
+    securityRequirementList.Add(securityRequirement);
+    openApiOperation.Security = (IList<OpenApiSecurityRequirement>) securityRequirementList;
+  }
+}
