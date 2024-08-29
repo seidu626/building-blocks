@@ -1,5 +1,15 @@
-bin/
-obj/
+BuildingBlocks/bin/
+BuildingBlocks/obj/
+BuildingBlocks.Ldap/bin/
+BuildingBlocks.Ldap/obj/
+BuildingBlocks.Exceptions/bin/
+BuildingBlocks.Exceptions/obj/
+BuildingBlocks.Persistence/bin/
+BuildingBlocks.Persistence/obj/
+BuildingBlocks.Ussd/bin/
+BuildingBlocks.Ussd/obj/
+BuildingBlocks.Ussd.Sdk/bin/
+BuildingBlocks.Ussd.Sdk/obj/
 /packages/
 riderModule.iml
 /_ReSharper.Caches/
