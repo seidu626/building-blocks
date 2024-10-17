@@ -1,5 +1,5 @@
 ﻿#nullable enable
-using CSharpFunctionalExtensions;
+
 
 namespace BuildingBlocks.Exceptions;
 
@@ -26,7 +26,6 @@ public sealed class Error : ValueObject
 
     public string StackTrace => _stackTrace;
 
-
     public override string ToString()
     {
         return $"code: {_code} - message: {_message} - stackTrace: {_stackTrace}";
@@ -34,6 +33,7 @@ public sealed class Error : ValueObject
 
     protected override IEnumerable<IComparable> GetEqualityComponents()
     {
-        yield return _code;
+        yield return _code;  // string implements IComparable
+        yield return _message;  // string implements IComparable
     }
 }

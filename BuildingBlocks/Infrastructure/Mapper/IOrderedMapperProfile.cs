@@ -1,13 +1,12 @@
-﻿// Decompiled with JetBrains decompiler
-// Type: BuildingBlocks.Infrastructure.Mapper.IOrderedMapperProfile
-// Assembly: BuildingBlocks, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null
-// MVID: 8587CF18-BE3D-4726-89FF-4AF7AAC01FA5
-// Assembly location: C:\Users\420919\Repositories\STS\Api\BuildingBlocks.dll
+﻿namespace BuildingBlocks.Infrastructure.Mapper;
 
-#nullable disable
-namespace BuildingBlocks.Infrastructure.Mapper;
-
-public interface IOrderedMapperProfile
+/// <summary>
+/// Mapper profile registrar interface
+/// </summary>
+public partial interface IOrderedMapperProfile
 {
-  int Order { get; }
+    /// <summary>
+    /// Gets order of this configuration implementation
+    /// </summary>
+    int Order { get; }
 }

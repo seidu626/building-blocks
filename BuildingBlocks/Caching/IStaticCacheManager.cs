@@ -1,9 +1,6 @@
-﻿using System;
-using System.Threading.Tasks;
-
-namespace BuildingBlocks.Caching
+﻿namespace BuildingBlocks.Caching
 {
-    public interface IStaticCacheManager : IDisposable
+    public interface IStaticCacheManager : ICacheKeyService, IDisposable
     {
         /// <summary>
         /// Gets a cached item asynchronously, or acquires it if not cached.

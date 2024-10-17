@@ -13,19 +13,20 @@ namespace BuildingBlocks.Ldap.UserStore;
 
 public interface ILdapUserStore<TUser> where TUser : IAppUser, new()
 {
-    Result<TUser, Error> ValidateCredentials(string username, string password);
+    Task<Result<TUser, Error>> ValidateCredentialsAsync(string username, string password);
 
-    Result<TUser, Error> ValidateCredentials(string username, string password, string domain);
+    Task<Result<TUser, Error>> ValidateCredentialsAsync(string username, string password, string domain);
 
-    Result<TUser, Error> FindBySubjectId(string subjectId);
+    Task<Result<TUser, Error>> FindBySubjectIdAsync(string subjectId);
 
-    Result<TUser, Error> FindByUsername(string username);
+    Task<Result<TUser, Error>> FindByUsernameAsync(string username);
 
-    Result<TUser, Error> FindByEmail(string email);
+    Task<Result<TUser, Error>> FindByEmailAsync(string email);
+    Task<Result<TUser, Error>> FindByPhoneAsync(string phone);
 
-    Result<List<string>, Error> GetUserAttributes(string attributeName, string attributeValue, string domain);
+    Task<Result<List<string>, Error>> GetUserAttributesAsync(string attributeName, string attributeValue, string domain);
 
-    Result<TUser, Error> FindByExternalProvider(string provider, string userId);
+    Task<Result<TUser, Error>> FindByExternalProviderAsync(string provider, string userId);
 
-    Result<TUser, Error> AutoProvisionUser(string provider, string userId, List<Claim> claims);
+    Task<Result<TUser, Error>> AutoProvisionUserAsync(string provider, string userId, List<Claim> claims);
 }

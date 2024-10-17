@@ -1,0 +1,76 @@
+{
+  "format": 1,
+  "restore": {
+    "/home/xper626/Documents/repositories/building-blocks/TimeoutWeaver/TimeoutWeaver.csproj": {}
+  },
+  "projects": {
+    "/home/xper626/Documents/repositories/building-blocks/TimeoutWeaver/TimeoutWeaver.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "/home/xper626/Documents/repositories/building-blocks/TimeoutWeaver/TimeoutWeaver.csproj",
+        "projectName": "TimeoutWeaver.Fody",
+        "projectPath": "/home/xper626/Documents/repositories/building-blocks/TimeoutWeaver/TimeoutWeaver.csproj",
+        "packagesPath": "/home/xper626/.nuget/packages/",
+        "outputPath": "/home/xper626/Documents/repositories/building-blocks/TimeoutWeaver/obj/",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "/home/xper626/.nuget/NuGet/NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "noWarn": [
+            "NU5118"
+          ],
+          "warnAsError": [
+            "NU1605"
+          ]
+        }
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "Fody": {
+              "include": "Runtime, Build, Native, ContentFiles, Analyzers, BuildTransitive",
+              "suppressParent": "All",
+              "target": "Package",
+              "version": "[6.8.2, )"
+            },
+            "FodyPackaging": {
+              "target": "Package",
+              "version": "[6.8.2, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "/home/xper626/.dotnet/sdk/8.0.401/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    }
+  }
+}

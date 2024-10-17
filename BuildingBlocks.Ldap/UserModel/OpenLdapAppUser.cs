@@ -13,93 +13,96 @@ namespace BuildingBlocks.Ldap.UserModel;
 
 public class OpenLdapAppUser : IAppUser
 {
-  private string _subjectId;
+    private string _subjectId;
 
-  public string SubjectId
-  {
-    get => this._subjectId ?? this.Username;
-    set => this._subjectId = value;
-  }
-
-  public string ProviderSubjectId { get; set; }
-
-  public string ProviderName { get; set; }
-
-  public string DisplayName { get; set; }
-
-  public string Username { get; set; }
-
-  public string Fullname { get; set; }
-
-  public string Email { get; set; }
-
-  public bool IsActive
-  {
-    get => true;
-    set
+    public string SubjectId
     {
+        get => this._subjectId ?? this.Username;
+        set => this._subjectId = value;
     }
-  }
 
-  public ICollection<Claim> Claims { get; set; }
+    public string Mobile { get; set; }
+    public string ProviderSubjectId { get; set; }
 
-  public string[] LdapAttributes => Enum<OpenLdapAttributes>.Descriptions;
+    public string ProviderName { get; set; }
 
-  public void FillClaims(LdapEntry user, LdapEntry? manager = null)
-  {
-    this.Claims = (ICollection<Claim>) new List<Claim>()
-    {
-      this.GetClaimFromLdapAttributes(user, "name", OpenLdapAttributes.DisplayName),
-      this.GetClaimFromLdapAttributes(user, "family_name", OpenLdapAttributes.LastName),
-      this.GetClaimFromLdapAttributes(user, "given_name", OpenLdapAttributes.FirstName),
-      this.GetClaimFromLdapAttributes(user, "email", OpenLdapAttributes.EMail),
-      this.GetClaimFromLdapAttributes(user, "phone_number", OpenLdapAttributes.TelephoneNumber)
-    };
-    try
-    {
-      IEnumerator<string> stringValues = user.GetAttribute(OpenLdapAttributes.MemberOf.ToDescriptionString()).StringValues;
-      while (stringValues.MoveNext())
-        this.Claims.Add(new Claim("role", stringValues.Current.ToString()));
-    }
-    catch (Exception ex)
-    {
-    }
-  }
+    public string DisplayName { get; set; }
 
-  public static string[] RequestedLdapAttributes() => throw new NotImplementedException();
+    public string Username { get; set; }
 
-  internal Claim GetClaimFromLdapAttributes(
-    LdapEntry user,
-    string claim,
-    OpenLdapAttributes ldapAttribute)
-  {
-    string str = string.Empty;
-    try
-    {
-      str = user.GetAttribute(ldapAttribute.ToDescriptionString()).StringValue;
-      return new Claim(claim, str);
-    }
-    catch (Exception ex)
-    {
-    }
-    return new Claim(claim, str);
-  }
+    public string Fullname { get; set; }
 
-  public void SetBaseDetails(LdapEntry ldapEntry, LdapEntry manager = null, string providerName = "")
-  {
-    this.DisplayName = ldapEntry.GetAttribute(OpenLdapAttributes.DisplayName.ToDescriptionString()).StringValue;
-    this.Username = ldapEntry.GetAttribute(OpenLdapAttributes.UserName.ToDescriptionString()).StringValue;
-    try
+    public string Email { get; set; }
+
+    public bool IsActive
     {
-      this.Email = ldapEntry.GetAttribute(OpenLdapAttributes.EMail.ToDescriptionString()).StringValue;
+        get => true;
+        set { }
     }
-    catch (Exception ex)
+
+    public ICollection<Claim> Claims { get; set; }
+
+    public string[] LdapAttributes => Enum<OpenLdapAttributes>.Descriptions;
+
+    public void FillClaims(LdapEntry user, LdapEntry? manager = null)
     {
-      this.Email = this.Username + "@mtn.com";
+        this.Claims = (ICollection<Claim>)new List<Claim>()
+        {
+            this.GetClaimFromLdapAttributes(user, "name", OpenLdapAttributes.DisplayName),
+            this.GetClaimFromLdapAttributes(user, "family_name", OpenLdapAttributes.LastName),
+            this.GetClaimFromLdapAttributes(user, "given_name", OpenLdapAttributes.FirstName),
+            this.GetClaimFromLdapAttributes(user, "email", OpenLdapAttributes.EMail),
+            this.GetClaimFromLdapAttributes(user, "phone_number", OpenLdapAttributes.TelephoneNumber)
+        };
+        try
+        {
+            IEnumerator<string> stringValues =
+                user.GetAttribute(OpenLdapAttributes.MemberOf.ToDescriptionString()).StringValues;
+            while (stringValues.MoveNext())
+                this.Claims.Add(new Claim("role", stringValues.Current.ToString()));
+        }
+        catch (Exception ex)
+        {
+        }
     }
-    this.ProviderName = providerName;
-    this.SubjectId = this.Username;
-    this.ProviderSubjectId = this.Username;
-    this.FillClaims(ldapEntry);
-  }
+
+    public static string[] RequestedLdapAttributes() => throw new NotImplementedException();
+
+    internal Claim GetClaimFromLdapAttributes(
+        LdapEntry user,
+        string claim,
+        OpenLdapAttributes ldapAttribute)
+    {
+        string str = string.Empty;
+        try
+        {
+            str = user.GetAttribute(ldapAttribute.ToDescriptionString()).StringValue;
+            return new Claim(claim, str);
+        }
+        catch (Exception ex)
+        {
+        }
+
+        return new Claim(claim, str);
+    }
+
+    public void SetBaseDetails(LdapEntry ldapEntry, LdapEntry manager = null, string providerName = "")
+    {
+        this.DisplayName = ldapEntry.GetAttribute(OpenLdapAttributes.DisplayName.ToDescriptionString()).StringValue;
+        this.Username = ldapEntry.GetAttribute(OpenLdapAttributes.UserName.ToDescriptionString()).StringValue;
+        this.Mobile = ldapEntry.GetAttribute(OpenLdapAttributes.TelephoneNumber.ToDescriptionString()).StringValue;
+        try
+        {
+            this.Email = ldapEntry.GetAttribute(OpenLdapAttributes.EMail.ToDescriptionString()).StringValue;
+        }
+        catch (Exception ex)
+        {
+            this.Email = this.Username + "@mtn.com";
+        }
+
+        this.ProviderName = providerName;
+        this.SubjectId = this.Username;
+        this.ProviderSubjectId = this.Username;
+        this.FillClaims(ldapEntry);
+    }
 }

@@ -25,7 +25,7 @@ public abstract class AuditableIdentityContext : DbContext
     {
         this.OnBeforeSaveChanges(userId);
         // ISSUE: reference to a compiler-generated method
-        return await this.SaveChangesAsync(cancellationToken);
+        return await base.SaveChangesAsync(cancellationToken);
     }
 
     private void OnBeforeSaveChanges(string userId)

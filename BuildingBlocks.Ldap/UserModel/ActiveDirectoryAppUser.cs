@@ -14,9 +14,8 @@ public class ActiveDirectoryAppUser : IAppUser
         get => _subjectId ?? Username;
         set => _subjectId = value;
     }
-
     public string ProviderSubjectId { get; set; }
-    public string ProviderName { get; set; }
+    public string? ProviderName { get; set; }
     public string DisplayName { get; set; }
     public string EmployeeNumber { get; set; }
     public string Username { get; set; }
@@ -132,7 +131,7 @@ public class ActiveDirectoryAppUser : IAppUser
     }
 
 
-    public void SetBaseDetails(LdapEntry ldapEntry, LdapEntry? manager = null, string providerName = "")
+    public void SetBaseDetails(LdapEntry ldapEntry, LdapEntry? manager = null, string? providerName = "")
         {
             DisplayName = SafeGetAttributeStringValue(ldapEntry, ActiveDirectoryLdapAttributes.DisplayName.ToDescriptionString());
             Fullname = SafeGetAttributeStringValue(ldapEntry, ActiveDirectoryLdapAttributes.FullName.ToDescriptionString());

@@ -1,9 +1,11 @@
-﻿using System.Text;
+﻿using System.Diagnostics;
+using System.Text;
 using BuildingBlocks.OAuth;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace BuildingBlocks.Modules.AuditTrail;
 
@@ -29,43 +31,54 @@ public class AuditService<TDbContext> where TDbContext : DbContext
 
     public async Task InvokeMiddlewareAsync(HttpContext context, string controllerKey, string actionKey)
     {
-        var auditConfig = _configuration.GetSection("AuditConfig").Get<AuditConfig>();
-        var request = context.Request;
-        var path = request.Path;
-
-        if (!path.StartsWithSegments("/api"))
+        try
         {
-            return;
+            var auditConfig = _configuration.GetSection("AuditConfig").Get<AuditConfig>();
+            var request = context.Request;
+            var path = request.Path;
+
+            if (!path.StartsWithSegments("/api"))
+            {
+                return;
+            }
+
+            if (request.RouteValues.TryGetValue(controllerKey, out var controllerNameObj) &&
+                request.RouteValues.TryGetValue(actionKey, out var actionNameObj))
+            {
+                var controllerName = controllerNameObj?.ToString() ?? string.Empty;
+                var actionName = actionNameObj?.ToString() ?? string.Empty;
+                var changedValue = await GetChangedValues(request).ConfigureAwait(false);
+                var username = await _identityService.GetUsernameAsync();
+
+                var entry = new AuditEntry
+                {
+                    EntityName = controllerName,
+                    UserId = username,
+                    AuditType = AuditType.Request,
+                    Metadata = request.Method,
+                    NewValues = { [actionName] = changedValue }
+                };
+
+                if (auditConfig.UseBackgroundQueue)
+                {
+                    _auditQueue.QueueAuditEntry(entry);
+                }
+                else
+                {
+                    using var scope = _scopeFactory.CreateScope();
+                    var dbContext = scope.ServiceProvider.GetRequiredService<TDbContext>();
+                    dbContext.Add(entry.ToAudit());
+                    await dbContext.SaveChangesAsync(new CancellationToken());
+                }
+            }
         }
-
-        if (request.RouteValues.TryGetValue(controllerKey, out var controllerNameObj) &&
-            request.RouteValues.TryGetValue(actionKey, out var actionNameObj))
+        catch (Exception e)
         {
-            var controllerName = controllerNameObj?.ToString() ?? string.Empty;
-            var actionName = actionNameObj?.ToString() ?? string.Empty;
-            var changedValue = await GetChangedValues(request).ConfigureAwait(false);
-            var username = await _identityService.GetUsernameAsync();
-
-            var entry = new AuditEntry
-            {
-                EntityName = controllerName,
-                UserId = username,
-                AuditType = AuditType.Request,
-                Metadata = request.Method,
-                NewValues = { [actionName] = changedValue }
-            };
-
-            if (auditConfig.UseBackgroundQueue)
-            {
-                _auditQueue.QueueAuditEntry(entry);
-            }
-            else
-            {
-                using var scope = _scopeFactory.CreateScope();
-                var dbContext = scope.ServiceProvider.GetRequiredService<TDbContext>();
-                dbContext.Add(entry.ToAudit());
-                await dbContext.SaveChangesAsync(new CancellationToken());
-            }
+            using var scope = _scopeFactory.CreateScope();
+            var ex = e.Demystify();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<AuditService<TDbContext>>>();
+            logger.LogError(ex, ex.Message);
+            throw;
         }
     }
 
@@ -74,7 +87,9 @@ public class AuditService<TDbContext> where TDbContext : DbContext
         return request.Method switch
         {
             "POST" or "PUT" => await ReadRequestBody(request).ConfigureAwait(false),
-            "DELETE" => request.RouteValues.TryGetValue(IdKey, out var id) ? id?.ToString() ?? string.Empty : string.Empty,
+            "DELETE" => request.RouteValues.TryGetValue(IdKey, out var id)
+                ? id?.ToString() ?? string.Empty
+                : string.Empty,
             _ => string.Empty
         };
     }

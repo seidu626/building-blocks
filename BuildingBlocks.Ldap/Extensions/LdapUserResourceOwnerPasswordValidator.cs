@@ -1,16 +1,11 @@
-﻿// Decompiled with JetBrains decompiler
-// Type: Skoruba.Duende.IdentityServer.STS.Identity.Infrastructure.LdapExtension.Extensions.LdapUserResourceOwnerPasswordValidator`1
-// Assembly: Skoruba.Duende.IdentityServer.STS.Identity, Version=1.2.0.0, Culture=neutral, PublicKeyToken=null
-// MVID: 425C0317-D64B-453B-BC95-043C64DD9F8A
-// Assembly location: C:\Users\420919\Repositories\STS\STS\Skoruba.Duende.IdentityServer.STS.Identity.dll
-
-#nullable disable
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using BuildingBlocks.Exceptions;
 using BuildingBlocks.Ldap.UserStore;
 using CSharpFunctionalExtensions;
+using Duende.IdentityServer.Models;
 using Duende.IdentityServer.Validation;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.Extensions.Logging;
 
 namespace BuildingBlocks.Ldap.Extensions;
 
@@ -19,25 +14,50 @@ public class LdapUserResourceOwnerPasswordValidator<TUser> : IResourceOwnerPassw
 {
     private readonly ILdapUserStore<TUser> _users;
     private readonly ISystemClock _clock;
+    private readonly ILogger<LdapUserResourceOwnerPasswordValidator<TUser>> _logger;
 
-    public LdapUserResourceOwnerPasswordValidator(ILdapUserStore<TUser> users, ISystemClock clock)
+    public LdapUserResourceOwnerPasswordValidator(
+        ILdapUserStore<TUser> users,
+        ISystemClock clock,
+        ILogger<LdapUserResourceOwnerPasswordValidator<TUser>> logger)
     {
-        this._users = users;
-        this._clock = clock;
+        _users = users ?? throw new ArgumentNullException(nameof(users));
+        _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public Task ValidateAsync(ResourceOwnerPasswordValidationContext context)
+    public async Task ValidateAsync(ResourceOwnerPasswordValidationContext context)
     {
-        Result<TUser, Error> result = this._users.ValidateCredentials(context.UserName, context.Password);
-        if ((object)result.Value != null)
+        try
         {
-            ResourceOwnerPasswordValidationContext validationContext = context;
-            GrantValidationResult validationResult = new GrantValidationResult(
-                result.Value.SubjectId ?? throw new ArgumentException("Subject ID not set", "SubjectId"), "pwd",
-                this._clock.UtcNow.UtcDateTime, (IEnumerable<Claim>)result.Value.Claims);
-            validationContext.Result = validationResult;
-        }
+            // Validate the user credentials asynchronously.
+            Result<TUser, Error> result = await _users.ValidateCredentialsAsync(context.UserName, context.Password);
 
-        return Task.CompletedTask;
+            if (result.IsSuccess && result.Value != null)
+            {
+                _logger.LogInformation("User {Username} successfully authenticated.", context.UserName);
+
+                // Create the grant validation result with the user's claims.
+                context.Result = new GrantValidationResult(
+                    result.Value.SubjectId ??
+                    throw new ArgumentException("Subject ID not set", nameof(result.Value.SubjectId)),
+                    "pwd",
+                    _clock.UtcNow.UtcDateTime,
+                    result.Value.Claims);
+            }
+            else
+            {
+                _logger.LogWarning("Invalid credentials for user {Username}. Error: {Error}", context.UserName,
+                    result.Error?.FriendlyMessage);
+                context.Result = new GrantValidationResult(TokenRequestErrors.InvalidGrant, "Invalid credentials.");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "An error occurred while validating the credentials for user {Username}",
+                context.UserName);
+            context.Result = new GrantValidationResult(TokenRequestErrors.InvalidGrant,
+                "An error occurred during authentication.");
+        }
     }
 }
