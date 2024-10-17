@@ -15,9 +15,7 @@ public class BaseClient
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    private async Task<T> SendRequestAsync<T>(
-        HttpRequestMessage request,
-        CancellationToken cancellationToken)
+    private async Task<T> SendRequestAsync<T>(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         _logger.LogInformation("Sending request: {Method} {Uri}", request.Method, request.RequestUri);
 
@@ -45,20 +43,16 @@ public class BaseClient
         }
     }
 
-    public async Task<T> GetAsync<T>(
-        CancellationToken cancellationToken,
-        Dictionary<string, string> parameters,
+    public async Task<T> GetAsync<T>(CancellationToken cancellationToken, Dictionary<string, string> parameters,
         string url)
     {
-        var query = string.Join("&", parameters);
+        var query = string.Join("&",
+            parameters.Select(p => $"{Uri.EscapeDataString(p.Key)}={Uri.EscapeDataString(p.Value)}"));
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"{url}?{query}");
         return await SendRequestAsync<T>(request, cancellationToken);
     }
 
-    public async Task<TResult> PostAsync<T, TResult>(
-        T data,
-        CancellationToken cancellationToken,
-        string url)
+    public async Task<TResult> PostAsync<T, TResult>(T data, CancellationToken cancellationToken, string url)
     {
         string jsonData = JsonConvert.SerializeObject(data);
         HttpContent content = new StringContent(jsonData, Encoding.UTF8, "application/json");
@@ -69,11 +63,7 @@ public class BaseClient
         return await SendRequestAsync<TResult>(request, cancellationToken);
     }
 
-    public async Task<TResult> PutAsync<T, TResult>(
-        int id,
-        T data,
-        CancellationToken cancellationToken,
-        string url)
+    public async Task<TResult> PutAsync<T, TResult>(int id, T data, CancellationToken cancellationToken, string url)
     {
         string jsonData = JsonConvert.SerializeObject(data);
         string requestUrl = $"{url}/{id}";
@@ -85,10 +75,7 @@ public class BaseClient
         return await SendRequestAsync<TResult>(request, cancellationToken);
     }
 
-    public async Task<string> DeleteAsync(
-        int id,
-        CancellationToken cancellationToken,
-        string url)
+    public async Task<string> DeleteAsync(int id, CancellationToken cancellationToken, string url)
     {
         string requestUrl = $"{url}/{id}";
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Delete, requestUrl);

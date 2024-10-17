@@ -11,6 +11,7 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Threading;
 using System.Threading.Tasks;
+using BuildingBlocks.Persistence.Extensions;
 
 namespace BuildingBlocks.Persistence
 {
@@ -41,25 +42,133 @@ namespace BuildingBlocks.Persistence
         public ICollection<TEntity> Local => Entities.Local;
         public TEntity Create() => new TEntity();
 
-        public Task<IList<TEntity>> GetAllAsync(Func<IQueryable<TEntity>, IQueryable<TEntity>> predicate = null, Func<IStaticCacheManager, CacheKey> getCacheKey = null, bool includeDeleted = false)
+        /// <summary>
+        /// Get all entity entries
+        /// </summary>
+        /// <param name="func">Function to select entries</param>
+        /// <param name="getCacheKey">Function to get a cache key; pass null to don't cache; return null from this function to use the default key</param>
+        /// <param name="includeDeleted">Whether to include deleted items (applies only to <see cref="ISoftDeletedEntity"/> entities)</param>
+        /// <returns>
+        /// A task that represents the asynchronous operation
+        /// The task result contains the entity entries
+        /// </returns>
+        public async Task<IList<TEntity>> GetAllAsync(
+            Func<IQueryable<TEntity>, IQueryable<TEntity>> func = null,
+            Func<ICacheKeyService, CacheKey> getCacheKey = null, bool includeDeleted = true)
         {
-            throw new NotImplementedException();
+            async Task<IList<TEntity>> getAllAsync()
+            {
+                var query = AddDeletedFilter(Table, includeDeleted);
+                query = func != null ? func(query) : query;
+
+                return await query.ToListAsync();
+            }
+
+            return await GetEntitiesAsync(getAllAsync, getCacheKey);
         }
 
-        public Task<IPagedList<TEntity>> GetPagedAsync(Func<IQueryable<TEntity>, IQueryable<TEntity>> predicate = null, int pageIndex = 0, int pageSize = Int32.MaxValue,
-            bool getOnlyTotalCount = false, bool includeDeleted = false)
+        /// <summary>
+        /// Get all entity entries
+        /// </summary>
+        /// <param name="func">Function to select entries</param>
+        /// <param name="getCacheKey">Function to get a cache key; pass null to don't cache; return null from this function to use the default key</param>
+        /// <param name="includeDeleted">Whether to include deleted items (applies only to <see cref="ISoftDeletedEntity"/> entities)</param>
+        /// <returns>Entity entries</returns>
+        public IList<TEntity> GetAll(Func<IQueryable<TEntity>, IQueryable<TEntity>> func = null,
+            Func<ICacheKeyService, CacheKey> getCacheKey = null, bool includeDeleted = true)
         {
-            throw new NotImplementedException();
+            IList<TEntity> getAll()
+            {
+                var query = AddDeletedFilter(Table, includeDeleted);
+                query = func != null ? func(query) : query;
+
+                return query.ToList();
+            }
+
+            return GetEntities(getAll, getCacheKey);
         }
 
-        public async ValueTask<TEntity> GetByIdAsync(int id, Func<IStaticCacheManager, CacheKey> getCacheKey = null, bool includeDeleted = true)
+        /// <summary>
+        /// Get all entity entries
+        /// </summary>
+        /// <param name="func">Function to select entries</param>
+        /// <param name="getCacheKey">Function to get a cache key; pass null to don't cache; return null from this function to use the default key</param>
+        /// <param name="includeDeleted">Whether to include deleted items (applies only to <see cref="ISoftDeletedEntity"/> entities)</param>
+        /// <returns>
+        /// A task that represents the asynchronous operation
+        /// The task result contains the entity entries
+        /// </returns>
+        public async Task<IList<TEntity>> GetAllAsync(
+            Func<IQueryable<TEntity>, Task<IQueryable<TEntity>>> func = null,
+            Func<ICacheKeyService, CacheKey> getCacheKey = null, bool includeDeleted = true)
+        {
+            async Task<IList<TEntity>> getAllAsync()
+            {
+                var query = AddDeletedFilter(Table, includeDeleted);
+                query = func != null ? await func(query) : query;
+
+                return await query.ToListAsync();
+            }
+
+            return await GetEntitiesAsync(getAllAsync, getCacheKey);
+        }
+
+        /// <summary>
+        /// Get paged list of all entity entries
+        /// </summary>
+        /// <param name="func">Function to select entries</param>
+        /// <param name="pageIndex">Page index</param>
+        /// <param name="pageSize">Page size</param>
+        /// <param name="getOnlyTotalCount">Whether to get only the total number of entries without actually loading data</param>
+        /// <param name="includeDeleted">Whether to include deleted items (applies only to <see cref="ISoftDeletedEntity"/> entities)</param>
+        /// <returns>
+        /// A task that represents the asynchronous operation
+        /// The task result contains the paged list of entity entries
+        /// </returns>
+        public async Task<IPagedList<TEntity>> GetAllPagedAsync(
+            Func<IQueryable<TEntity>, IQueryable<TEntity>> func = null,
+            int pageIndex = 0, int pageSize = int.MaxValue, bool getOnlyTotalCount = false, bool includeDeleted = true)
+        {
+            var query = AddDeletedFilter(Table, includeDeleted);
+
+            query = func != null ? func(query) : query;
+
+            return await query.ToPagedListAsync(pageIndex, pageSize, getOnlyTotalCount);
+        }
+
+        /// <summary>
+        /// Get paged list of all entity entries
+        /// </summary>
+        /// <param name="func">Function to select entries</param>
+        /// <param name="pageIndex">Page index</param>
+        /// <param name="pageSize">Page size</param>
+        /// <param name="getOnlyTotalCount">Whether to get only the total number of entries without actually loading data</param>
+        /// <param name="includeDeleted">Whether to include deleted items (applies only to <see cref="ISoftDeletedEntity"/> entities)</param>
+        /// <returns>
+        /// A task that represents the asynchronous operation
+        /// The task result contains the paged list of entity entries
+        /// </returns>
+        public async Task<IPagedList<TEntity>> GetAllPagedAsync(
+            Func<IQueryable<TEntity>, Task<IQueryable<TEntity>>> func = null,
+            int pageIndex = 0, int pageSize = int.MaxValue, bool getOnlyTotalCount = false, bool includeDeleted = true)
+        {
+            var query = AddDeletedFilter(Table, includeDeleted);
+
+            query = func != null ? await func(query) : query;
+
+            return await query.ToPagedListAsync(pageIndex, pageSize, getOnlyTotalCount);
+        }
+
+        public async ValueTask<TEntity> GetByIdAsync(int id, Func<ICacheKeyService, CacheKey> getCacheKey = null,
+            bool includeDeleted = true)
         {
             if (getCacheKey == null)
             {
                 return await GetEntityAsync();
             }
 
-            var cacheKey = getCacheKey(_staticCacheManager) ?? _staticCacheManager.PrepareKeyForDefaultCache(EntityCacheDefaults<TEntity>.ByIdCacheKey, id);
+            var cacheKey = getCacheKey(_staticCacheManager) ??
+                           _staticCacheManager.PrepareKeyForDefaultCache(EntityCacheDefaults<TEntity>.ByIdCacheKey, id);
             return await _staticCacheManager.GetAsync(cacheKey, GetEntityAsync);
 
             async Task<TEntity> GetEntityAsync()
@@ -68,12 +177,14 @@ namespace BuildingBlocks.Persistence
             }
         }
 
-        public Task<List<TEntity>> GetByIdsAsync(IEnumerable<int> ids, Func<IStaticCacheManager, CacheKey> getCacheKey = null, bool includeDeleted = false)
+        public Task<List<TEntity>> GetByIdsAsync(IEnumerable<int> ids,
+            Func<ICacheKeyService, CacheKey> getCacheKey = null, bool includeDeleted = false)
         {
             throw new NotImplementedException();
         }
 
-        public async Task<IList<TEntity>> GetByIdsAsync(IList<int> ids, Func<IStaticCacheManager, CacheKey> getCacheKey = null, bool includeDeleted = true)
+        public async Task<IList<TEntity>> GetByIdsAsync(IList<int> ids,
+            Func<IStaticCacheManager, CacheKey> getCacheKey = null, bool includeDeleted = true)
         {
             if (ids == null || !ids.Any())
             {
@@ -85,7 +196,9 @@ namespace BuildingBlocks.Persistence
                 return await GetEntitiesByIdsAsync();
             }
 
-            var cacheKey = getCacheKey(_staticCacheManager) ?? _staticCacheManager.PrepareKeyForDefaultCache(EntityCacheDefaults<TEntity>.ByIdsCacheKey, ids);
+            var cacheKey = getCacheKey(_staticCacheManager) ??
+                           _staticCacheManager.PrepareKeyForDefaultCache(EntityCacheDefaults<TEntity>.ByIdsCacheKey,
+                               ids);
             return await _staticCacheManager.GetAsync(cacheKey, GetEntitiesByIdsAsync);
 
             async Task<IList<TEntity>> GetEntitiesByIdsAsync()
@@ -343,18 +456,25 @@ namespace BuildingBlocks.Persistence
 
         public DbContextProvider ContextProvider => _dbContextProvider;
 
-        private async Task<IList<TEntity>> GetEntitiesAsync(Func<Task<IList<TEntity>>> getAllAsync, Func<IStaticCacheManager, CacheKey> getCacheKey)
+        private async Task<IList<TEntity>> GetEntitiesAsync(Func<Task<IList<TEntity>>> getAllAsync,
+            Func<ICacheKeyService, CacheKey> getCacheKey)
         {
             return getCacheKey == null
                 ? await getAllAsync()
-                : await _staticCacheManager.GetAsync(getCacheKey(_staticCacheManager) ?? _staticCacheManager.PrepareKeyForDefaultCache(EntityCacheDefaults<TEntity>.AllCacheKey, Array.Empty<object>()), getAllAsync);
+                : await _staticCacheManager.GetAsync(
+                    getCacheKey(_staticCacheManager) ??
+                    _staticCacheManager.PrepareKeyForDefaultCache(EntityCacheDefaults<TEntity>.AllCacheKey,
+                        Array.Empty<object>()), getAllAsync);
         }
 
         private IList<TEntity> GetEntities(Func<IList<TEntity>> getAll, Func<IStaticCacheManager, CacheKey> getCacheKey)
         {
             return getCacheKey == null
                 ? getAll()
-                : _staticCacheManager.Get(getCacheKey(_staticCacheManager) ?? _staticCacheManager.PrepareKeyForDefaultCache(EntityCacheDefaults<TEntity>.AllCacheKey, Array.Empty<object>()), getAll);
+                : _staticCacheManager.Get(
+                    getCacheKey(_staticCacheManager) ??
+                    _staticCacheManager.PrepareKeyForDefaultCache(EntityCacheDefaults<TEntity>.AllCacheKey,
+                        Array.Empty<object>()), getAll);
         }
 
         private IQueryable<TEntity> AddDeletedFilter(IQueryable<TEntity> query, bool includeDeleted)
@@ -365,8 +485,8 @@ namespace BuildingBlocks.Persistence
             }
 
             return query.OfType<ISoftDeletedEntity>()
-                        .Where(e => !e.Deleted)
-                        .OfType<TEntity>();
+                .Where(e => !e.Deleted)
+                .OfType<TEntity>();
         }
 
         private void ChangeStateToModifiedIfApplicable(TEntity entity)

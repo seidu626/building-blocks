@@ -9,6 +9,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 using System;
 using System.Collections.Generic;
+using BuildingBlocks.Data;
 
 #nullable disable
 namespace BuildingBlocks.Persistence

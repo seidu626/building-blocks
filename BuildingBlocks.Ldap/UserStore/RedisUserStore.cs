@@ -1,11 +1,18 @@
-﻿using System.IdentityModel.Tokens.Jwt;
+﻿using System.Collections.Concurrent;
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using BuildingBlocks.Common.AOP;
 using BuildingBlocks.Exceptions;
 using BuildingBlocks.Ldap.Json;
 using CSharpFunctionalExtensions;
 using IdentityModel;
+using MethodTimer;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
+using Polly;
+using Polly.CircuitBreaker;
+using Polly.Fallback;
+using Polly.Retry;
 using StackExchange.Redis;
 
 namespace BuildingBlocks.Ldap.UserStore
@@ -17,22 +24,63 @@ namespace BuildingBlocks.Ldap.UserStore
         private readonly IConnectionMultiplexer _redis;
         private readonly TimeSpan _dataExpireIn;
         private readonly JsonSerializerSettings _jsonSettings;
+        private readonly AsyncRetryPolicy _retryPolicy;
+        private readonly AsyncFallbackPolicy _fallbackPolicy;
+
+        private readonly AsyncCircuitBreakerPolicy _circuitBreakerPolicy;
+
+        // Fallback in-memory storage in case Redis fails
+        private readonly ConcurrentDictionary<string, TUser> _fallbackCache = new ConcurrentDictionary<string, TUser>();
+
 
         public RedisUserStore(ILdapService<TUser> ldapService, ExtensionConfig config,
             ILogger<RedisUserStore<TUser>> logger)
         {
             _ldapService = ldapService ?? throw new ArgumentNullException(nameof(ldapService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+
             _redis = !string.IsNullOrEmpty(config.Redis)
                 ? InitializeRedis(config.Redis)
                 : throw new RedisConnectionException(ConnectionFailureType.UnableToConnect,
                     "Missing Redis configuration in Startup.cs");
+
             _dataExpireIn = TimeSpan.FromSeconds(config.RefreshClaimsInSeconds);
             _jsonSettings = new JsonSerializerSettings
             {
                 Converters = new List<JsonConverter> { new ClaimConverter() },
                 Formatting = Formatting.Indented
             };
+
+            // Polly retry and circuit breaker policies
+            _retryPolicy = Policy
+                .Handle<RedisTimeoutException>()
+                .Or<RedisException>()
+                .WaitAndRetryAsync(3, retryAttempt => TimeSpan.FromMilliseconds(200 * retryAttempt),
+                    (exception, timeSpan, retryCount, context) =>
+                    {
+                        _logger.LogWarning($"Retry {retryCount} for Redis operation due to: {exception.Message}");
+                    });
+
+
+            _fallbackPolicy = Policy
+                .Handle<RedisTimeoutException>()
+                .Or<RedisException>()
+                .Or<Exception>()
+                .FallbackAsync((action) =>
+                {
+                    _logger.LogWarning("Redis operation failed, falling back to in-memory cache.");
+                    return Task.CompletedTask;
+                });
+
+
+            _circuitBreakerPolicy = Policy
+                .Handle<RedisTimeoutException>()
+                .CircuitBreakerAsync(2, TimeSpan.FromMinutes(1),
+                    (exception, timespan) =>
+                    {
+                        _logger.LogWarning("Circuit breaker triggered due to Redis failures.");
+                    },
+                    () => { _logger.LogInformation("Circuit breaker reset."); });
         }
 
         private static IConnectionMultiplexer InitializeRedis(string connectionString)
@@ -40,60 +88,71 @@ namespace BuildingBlocks.Ldap.UserStore
             return ConnectionMultiplexer.Connect(ConfigurationOptions.Parse(connectionString));
         }
 
-        public Result<TUser, Error> ValidateCredentials(string username, string password)
+        public async Task<Result<TUser, Error>> ValidateCredentialsAsync(string username, string password)
         {
-            return ExecuteAndCache(() => _ldapService.Login(username, password, null));
+            return await ExecuteAndCacheAsync(() => _ldapService.Login(username, password, null), "username", username);
         }
 
-        public Result<TUser, Error> ValidateCredentials(string username, string password, string domain)
+        public async Task<Result<TUser, Error>> ValidateCredentialsAsync(string username, string password,
+            string? domain)
         {
-            return ExecuteAndCache(() => _ldapService.Login(username, password, domain));
+            return await ExecuteAndCacheAsync(() => _ldapService.Login(username, password, domain), "username",
+                username);
         }
 
-        public Result<TUser, Error> FindBySubjectId(string subjectId)
+        public async Task<Result<TUser, Error>> FindBySubjectIdAsync(string subjectId)
         {
-            return FindAndCache(nameof(subjectId), subjectId,
+            return await FindAndCacheAsync(nameof(subjectId), subjectId,
                 () => _ldapService.FindUser(subjectId.Replace("ldap_", "")));
         }
 
-        public Result<TUser, Error> FindByUsername(string username)
+        public async Task<Result<TUser, Error>> FindByUsernameAsync(string username)
         {
-            return FindAndCache(nameof(username), username, () => _ldapService.FindUser(username));
+            return await FindAndCacheAsync(nameof(username), username, () => _ldapService.FindUser(username));
         }
 
-        public Result<TUser, Error> FindByEmail(string email)
+        public async Task<Result<TUser, Error>> FindByEmailAsync(string email)
         {
-            return FindAndCache(nameof(email), email, () => _ldapService.FindUserByEmail(email));
+            return await FindAndCacheAsync(nameof(email), email, () => _ldapService.FindUserByEmail(email));
         }
 
-        public Result<List<string>, Error> GetUserAttributes(string attributeName, string attributeValue, string domain)
+        public async Task<Result<TUser, Error>> FindByPhoneAsync(string phone)
         {
-            return _ldapService.GetUserAttributes(attributeName, attributeValue, domain);
+            return await FindAndCacheAsync(nameof(phone), phone, () => _ldapService.FindUserByPhone(phone));
         }
 
-        public Result<TUser, Error> FindByExternalProvider(string provider, string userId)
+        public async Task<Result<List<string>, Error>> GetUserAttributesAsync(string attributeName,
+            string attributeValue, string domain)
         {
-            var database = _redis.GetDatabase();
-            var redisKey = $"IdentityServer/OpenId/provider/{provider}/userId/{userId}";
-            var redisValue = database.StringGet(redisKey);
+            return await _ldapService.GetUserAttributes(attributeName, attributeValue, domain);
+        }
 
-            if (redisValue.HasValue)
+        public async Task<Result<TUser, Error>> FindByExternalProviderAsync(string? provider, string userId)
+        {
+            return await _fallbackPolicy.WrapAsync(_retryPolicy).ExecuteAsync(async () =>
             {
-                var key = redisValue.ToString();
-                var userValue = database.StringGet(key);
-                if (userValue.HasValue)
+                var database = _redis.GetDatabase();
+                var redisKey = $"IdentityServer/OpenId/provider/{provider}/userId/{userId}";
+                var redisValue = await database.StringGetAsync(redisKey);
+
+                if (redisValue.HasValue)
                 {
-                    return userValue.ToString().TryDeserializeObject<TUser>(_logger, _jsonSettings);
+                    var key = redisValue.ToString();
+                    var userValue = await database.StringGetAsync(key);
+                    if (userValue.HasValue)
+                    {
+                        return userValue.ToString().TryDeserializeObject<TUser>(_logger, _jsonSettings);
+                    }
+
+                    _logger.LogWarning($"The key {key} should not exist or data is corrupted!");
                 }
 
-                _logger.LogWarning($"The key {key} should not be existing or data is corrupted!");
-            }
-
-            return Result.Failure<TUser, Error>(new Error("USER_NOT_FOUND", "User not found in external provider"));
+                return Result.Failure<TUser, Error>(new Error("USER_NOT_FOUND", "User not found in external provider"));
+            });
         }
 
-
-        public Result<TUser, Error> AutoProvisionUser(string provider, string userId, List<Claim> claims)
+        public async Task<Result<TUser, Error>> AutoProvisionUserAsync(string? provider, string userId,
+            List<Claim> claims)
         {
             var filteredClaims = FilterClaims(claims);
             var uniqueId = CryptoRandom.CreateUniqueId();
@@ -108,55 +167,74 @@ namespace BuildingBlocks.Ldap.UserStore
                 Claims = filteredClaims
             };
 
-            SetRedisData(user);
+            await SetRedisDataAsync(user);
 
             return user;
         }
 
-        private Result<TUser, Error> FindAndCache(string keyType, string key, Func<Result<TUser, Error>> fetchUser)
+
+        [Time] [Timeout(1200)]
+        private async Task<Result<TUser, Error>> FindAndCacheAsync(string keyType, string key,
+            Func<Task<Result<TUser, Error>>> fetchUser)
         {
             var redisKey = GetRedisKey(keyType, key);
-            var cachedUser = GetUserFromRedis(redisKey);
+
+            // Attempt to get the user from Redis
+            var cachedUser = await _retryPolicy.ExecuteAsync(async () => await GetUserFromRedisAsync(redisKey));
 
             if (cachedUser != null)
             {
                 return cachedUser;
             }
 
-            var fetchResult = fetchUser();
+            // If Redis fails or no user is found, check fallback cache
+            if (_fallbackCache.TryGetValue(redisKey, out var fallbackUser))
+            {
+                return fallbackUser;
+            }
+
+            // Fetch the user from the source (LDAP service)
+            var fetchResult = await fetchUser();
             if (fetchResult.IsFailure)
             {
                 return fetchResult;
             }
 
-            SetRedisData(fetchResult.Value);
+            // Save to both Redis and in-memory fallback cache
+            await SetRedisDataAsync(fetchResult.Value);
+            _fallbackCache[redisKey] = fetchResult.Value;
 
             return fetchResult;
         }
 
-        private Result<TUser, Error> ExecuteAndCache(Func<Result<TUser, Error>> action)
+
+        [Time] [Timeout(1200)]
+        private async Task<Result<TUser, Error>> ExecuteAndCacheAsync(Func<Task<Result<TUser, Error>>> action,
+            string keyType, string key)
         {
             try
             {
-                var result = action();
-                if (result.IsSuccess)
+                return await _circuitBreakerPolicy.ExecuteAsync(async () =>
                 {
-                    SetRedisData(result.Value);
-                }
+                    var result = await action();
+                    if (!result.IsSuccess) return result;
+                    await SetRedisDataAsync(result.Value);
+                    _fallbackCache[GetRedisKey(keyType, key)] = result.Value;
 
-                return result;
+                    return result;
+                });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An error occurred while executing the action");
-                return Result.Failure<TUser, Error>(new Error("INTERNAL_SERVER_ERROR", ex.Message));
+                _logger.LogError(ex, "An error occurred during the Redis operation.");
+                return Result.Failure<TUser, Error>(new Error("INTERNAL_SERVER_ERROR", ex.Message, ex));
             }
         }
 
-        private TUser? GetUserFromRedis(string redisKey)
+        [Time] [Timeout(1200)]
+        private async Task<TUser?> GetUserFromRedisAsync(string redisKey)
         {
-            var redisValue = _redis.GetDatabase().StringGet(redisKey);
-
+            var redisValue = await _redis.GetDatabase().StringGetAsync(redisKey);
             if (redisValue.HasValue)
             {
                 return redisValue.ToString().TryDeserializeObject<TUser>(_logger, _jsonSettings);
@@ -170,16 +248,22 @@ namespace BuildingBlocks.Ldap.UserStore
             return $"IdentityServer/OpenId/{type}/{key}";
         }
 
-        private void SetRedisData(TUser user)
+        [Time] [Timeout(1200)]
+        private async Task SetRedisDataAsync(TUser user)
         {
             var database = _redis.GetDatabase();
             var userData = JsonConvert.SerializeObject(user, _jsonSettings);
 
-            database.StringSet(GetRedisKey("subjectId", user.SubjectId), userData);
-            database.StringSet(GetRedisKey("username", user.Username), user.SubjectId);
-            database.StringSet(GetRedisKey("email", user.Email), user.SubjectId);
-            database.StringSet(GetRedisKey("provider", $"{user.ProviderName}/userId/{user.ProviderSubjectId}"),
-                user.SubjectId);
+            var tasks = new List<Task>
+            {
+                database.StringSetAsync(GetRedisKey("subjectId", user.SubjectId), userData, _dataExpireIn),
+                database.StringSetAsync(GetRedisKey("username", user.Username), user.SubjectId, _dataExpireIn),
+                database.StringSetAsync(GetRedisKey("email", user.Email), user.SubjectId, _dataExpireIn),
+                database.StringSetAsync(GetRedisKey("provider", $"{user.ProviderName}/userId/{user.ProviderSubjectId}"),
+                    user.SubjectId, _dataExpireIn)
+            };
+
+            await Task.WhenAll(tasks);
         }
 
         private List<Claim> FilterClaims(List<Claim> claims)

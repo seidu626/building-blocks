@@ -1,10 +1,15 @@
 ﻿using System.Diagnostics;
 using System.Net.Security;
+using BuildingBlocks.Common.AOP;
 using BuildingBlocks.Exceptions;
 using CSharpFunctionalExtensions;
+using MethodTimer;
 using Microsoft.Extensions.Logging;
 using Novell.Directory.Ldap;
 using Novell.Directory.Ldap.Utilclass;
+using Polly;
+using Polly.CircuitBreaker;
+using Polly.Retry;
 
 namespace BuildingBlocks.Ldap
 {
@@ -13,12 +18,30 @@ namespace BuildingBlocks.Ldap
         private readonly ILogger<LdapService<TUser>> _logger;
         private readonly ICollection<LdapConfig> _config;
         private readonly Dictionary<string, LdapConnection> _ldapConnections = new();
+        private readonly AsyncRetryPolicy _retryPolicy;
+        private readonly AsyncCircuitBreakerPolicy _circuitBreakerPolicy;
 
         public LdapService(ExtensionConfig config, ILogger<LdapService<TUser>> logger)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _config = config.Connections ?? throw new ArgumentNullException(nameof(config.Connections));
             InitializeLdapConnections();
+
+            // Define the retry policy
+            _retryPolicy = Policy
+                .Handle<LdapException>()
+                .WaitAndRetryAsync(3, retryAttempt => TimeSpan.FromMilliseconds(_config.First().Timeout * retryAttempt),
+                    (exception, timeSpan, retryCount, context) =>
+                    {
+                        _logger.LogWarning($"Retry {retryCount} for LDAP operation due to: {exception.Message}");
+                    });
+
+            // Define the circuit breaker policy
+            _circuitBreakerPolicy = Policy
+                .Handle<LdapException>()
+                .CircuitBreakerAsync(2, TimeSpan.FromMinutes(2),
+                    (exception, timespan) => { _logger.LogWarning("Circuit breaker triggered for LDAP operation."); },
+                    () => { _logger.LogInformation("Circuit breaker reset for LDAP."); });
         }
 
         private void InitializeLdapConnections()
@@ -39,126 +62,173 @@ namespace BuildingBlocks.Ldap
         /// <param name="chain"></param>
         /// <param name="sslPolicyErrors"></param>
         /// <returns></returns>
-        private bool CertificateValidationCallBack(
-            object sender,
+        private bool CertificateValidationCallBack(object sender,
             System.Security.Cryptography.X509Certificates.X509Certificate certificate,
             System.Security.Cryptography.X509Certificates.X509Chain chain,
             System.Net.Security.SslPolicyErrors sslPolicyErrors)
         {
-            // If the certificate is a valid, signed certificate, return true.
-            if (sslPolicyErrors == System.Net.Security.SslPolicyErrors.None)
+            if (sslPolicyErrors == SslPolicyErrors.None)
             {
                 return true;
             }
+
+            _logger.LogWarning("Certificate validation issue for {0}: {1}", certificate.Subject, sslPolicyErrors);
 
             if (sslPolicyErrors == SslPolicyErrors.RemoteCertificateNameMismatch)
             {
-                _logger.LogWarning("Certificate name mismatch for certificate: {0}", certificate.Subject);
-                // Optionally, implement further validation or accept the mismatch in specific cases
-                return true; // Accept the mismatch for this example
-            }
-
-            // If there are errors in the certificate chain, look at each error to determine the cause.
-            if ((sslPolicyErrors & System.Net.Security.SslPolicyErrors.RemoteCertificateChainErrors) != 0)
-            {
-                if (chain != null && chain.ChainStatus != null)
-                {
-                    foreach (System.Security.Cryptography.X509Certificates.X509ChainStatus status in chain.ChainStatus)
-                    {
-                        if ((certificate.Subject == certificate.Issuer) &&
-                            (status.Status == System.Security.Cryptography.X509Certificates.X509ChainStatusFlags
-                                .UntrustedRoot))
-                        {
-                            // Self-signed certificates with an untrusted root are valid. 
-                            continue;
-                        }
-                        else
-                        {
-                            if (status.Status != System.Security.Cryptography.X509Certificates.X509ChainStatusFlags
-                                    .NoError)
-                            {
-                                _logger.LogWarning("Certificate error: Subject:{0} | Code:{1} | Details:{2}",
-                                    certificate.Subject, status.Status, status.StatusInformation);
-                                // If there are any other errors in the certificate chain, the certificate is invalid,
-                                // so the method returns false.
-                                return false;
-                            }
-                        }
-                    }
-                }
-
-                // When processing reaches this line, the only errors in the certificate chain are 
-                // untrusted root errors for self-signed certificates. These certificates are valid
-                // for default Exchange server installations, so return true.
+                _logger.LogWarning("Certificate name mismatch: {0}", certificate.Subject);
                 return true;
             }
-            else
-            {
-                // In all other cases, return false.
+
+            return sslPolicyErrors == SslPolicyErrors.RemoteCertificateChainErrors && IsChainValid(chain);
+        }
+
+        private bool IsChainValid(System.Security.Cryptography.X509Certificates.X509Chain chain)
+        {
+            if (chain == null || chain.ChainStatus == null)
                 return false;
+
+            foreach (var status in chain.ChainStatus)
+            {
+                if (status.Status == System.Security.Cryptography.X509Certificates.X509ChainStatusFlags.UntrustedRoot)
+                {
+                    _logger.LogWarning("Untrusted root detected");
+                    continue;
+                }
+
+                if (status.Status != System.Security.Cryptography.X509Certificates.X509ChainStatusFlags.NoError)
+                {
+                    _logger.LogError("Chain status error: {0}", status.StatusInformation);
+                    return false;
+                }
             }
+
+            return true;
         }
 
-
-        public Result<TUser, Error> Login(string username, string password)
+        public async Task<Result<TUser, Error>> Login(string username, string password)
         {
-            return AuthenticateUser(username, password, null);
+            return await AuthenticateUser(username, password, null);
         }
 
-        public Result<TUser, Error> Login(string username, string password, string domain)
+        public async Task<Result<TUser, Error>> Login(string username, string password, string? domain)
         {
-            return AuthenticateUser(username, password, domain);
+            return await AuthenticateUser(username, password, domain);
         }
 
-        public Result<TUser, Error> FindUser(string username)
+        public Task<Result<TUser, Error>> FindUser(string username)
         {
-            return FindUserByUsername(username, null);
+            return Task.FromResult(FindUserByUsername(username, null));
         }
 
-        public Result<TUser, Error> FindUser(string username, string domain)
+        public Task<Result<TUser, Error>> FindUser(string username, string domain)
         {
-            return FindUserByUsername(username, domain);
+            return Task.FromResult(FindUserByUsername(username, domain));
         }
 
-        public Result<TUser, Error> FindUserByEmail(string email)
+        public Task<Result<TUser, Error>> FindUserByEmail(string email)
         {
             return FindUserByEmail(email, null);
         }
 
-        public Result<TUser, Error> FindUserByEmail(string email, string domain)
+        public Task<Result<TUser, Error>> FindUserByPhone(string phone)
         {
-            return GetUserByAttribute("mail", email, domain);
+            return FindUserByPhone(phone, null);
         }
+
+        public Task<Result<TUser, Error>> FindUserByEmail(string email, string? domain)
+        {
+            return Task.FromResult(GetUserByAttribute("mail", email, domain));
+        }
+
+        public Task<Result<TUser, Error>> FindUserByPhone(string phone, string? domain)
+        {
+            var formattedPhones = GetFormattedPhoneNumbers(phone);
+            foreach (var formattedPhone in formattedPhones)
+            {
+                var result = GetUserByAttribute("mobile", formattedPhone, domain);
+                if (result.IsSuccess)
+                {
+                    return Task.FromResult(result); // Return the user if found
+                }
+            }
+
+            return Task.FromResult<Result<TUser, Error>>(
+                new Error("404", "User not found with the given phone number."));
+        }
+
+        private IEnumerable<string> GetFormattedPhoneNumbers(string phone)
+        {
+            var formattedPhones = new List<string>();
+
+            // Add the original phone number
+            formattedPhones.Add(phone);
+
+            // Add the phone number with international code (e.g., +233)
+            if (phone.StartsWith("0"))
+            {
+                formattedPhones.Add("233" + phone.Substring(1)); // Example: 0540618592 -> 233540618592
+            }
+
+            // Add the local format if the phone number starts with the country code
+            if (phone.StartsWith("233"))
+            {
+                formattedPhones.Add("0" + phone.Substring(3)); // Example: 233540618592 -> 0540618592
+            }
+
+            return formattedPhones;
+        }
+
 
         private Result<TUser, Error> FindUserByUsername(string username, string? domain)
         {
             return GetUserByAttribute("sAMAccountName", username, domain);
         }
 
-        private Result<TUser, Error> AuthenticateUser(string username, string password, string domain)
+        private async Task<Result<TUser, Error>> AuthenticateUser(string username, string password, string? domain)
         {
-            var searchResult = PerformLdapSearch("sAMAccountName", username, domain);
-            if (searchResult.IsFailure) return searchResult.Error;
-            var userEntry = GetUserFromSearchResults(searchResult.Value);
-            if (userEntry.IsFailure) return userEntry.Error;
-
-            if (userEntry.Value == null)
+            return await _circuitBreakerPolicy.ExecuteAsync(async () =>
             {
-                return new Error("404", "User not found in any LDAP.");
-            }
-
-            searchResult.Value.LdapConnection.Bind(userEntry.Value.Dn, password);
-            if (!searchResult.Value.LdapConnection.Bound)
+                return await _retryPolicy.ExecuteAsync(() => PerformLdapAuthentication(username, password, domain));
+            });
+        }
+        
+        [Time] [Timeout(1200)]
+        private Task<Result<TUser, Error>> PerformLdapAuthentication(string username, string password,
+            string? domain)
+        {
+            try
             {
-                return new Error("404", "User not found in any LDAP.");
-            }
+                // Actual LDAP authentication and result handling
+                var searchResult = PerformLdapSearch("sAMAccountName", username, domain);
+                if (searchResult.IsFailure) return Task.FromResult<Result<TUser, Error>>(searchResult.Error);
 
-            var managerEntry = GetManagerEntry(userEntry.Value, searchResult.Value.LdapConnection);
-            var user = CreateUser(userEntry.Value, managerEntry, domain);
-            searchResult.Value.LdapConnection.Disconnect();
-            return user;
+                var userEntry = GetUserFromSearchResults(searchResult.Value);
+                if (userEntry.IsFailure) return Task.FromResult<Result<TUser, Error>>(userEntry.Error);
+                if (userEntry.Value == default)
+                {
+                    return Task.FromResult<Result<TUser, Error>>(new Error("500", "UserEntry is null"));
+                }
+
+                searchResult.Value.LdapConnection.Bind(userEntry.Value.Dn, password);
+                if (!searchResult.Value.LdapConnection.Bound)
+                {
+                    return Task.FromResult<Result<TUser, Error>>(new Error("404", "User not found in any LDAP."));
+                }
+
+                var managerEntry = GetManagerEntry(userEntry.Value, searchResult.Value.LdapConnection);
+                var user = CreateUser(userEntry.Value, managerEntry, domain);
+                searchResult.Value.LdapConnection.Disconnect();
+                return Task.FromResult<Result<TUser, Error>>(user);
+            }
+            catch (LdapException ex)
+            {
+                _logger.LogError(ex, "LDAP connection or authentication error.");
+                return Task.FromResult<Result<TUser, Error>>(new Error("500", ex.Message));
+            }
         }
 
+        [Time] [Timeout(1200)]
         private Result<TUser, Error> GetUserByAttribute(string attributeName, string attributeValue, string? domain)
         {
             var searchResult = PerformLdapSearch(attributeName, attributeValue, domain);
@@ -176,11 +246,12 @@ namespace BuildingBlocks.Ldap
             return CreateUser(userEntry.Value, managerEntry, domain ?? "local");
         }
 
-        public Result<List<string>, Error> GetUserAttributes(string attributeName, string attributeValue,
-            string? domain)
+        [Time] [Timeout(1200)]
+        public Task<Result<List<string>, Error>> GetUserAttributes(string attributeName, string attributeValue,
+            string domain)
         {
             var searchResult = PerformLdapSearch(attributeName, attributeValue, domain, true);
-            if (searchResult.IsFailure) return searchResult.Error;
+            if (searchResult.IsFailure) return Task.FromResult<Result<List<string>, Error>>(searchResult.Error);
             var userAttributes = new List<string>();
 
             while (searchResult.Value.Results.HasMore())
@@ -194,7 +265,7 @@ namespace BuildingBlocks.Ldap
                         userAttributes.Add($"{attribute.Name} = {attribute.StringValue}");
                     }
 
-                    return userAttributes;
+                    return Task.FromResult<Result<List<string>, Error>>(userAttributes);
                 }
                 catch (Exception e)
                 {
@@ -203,17 +274,17 @@ namespace BuildingBlocks.Ldap
                 }
             }
 
-            return userAttributes;
+            return Task.FromResult<Result<List<string>, Error>>(userAttributes);
         }
 
-
-        private TUser CreateUser(LdapEntry user, LdapEntry? manager = null, string domain = "")
+        private TUser CreateUser(LdapEntry user, LdapEntry? manager = null, string? domain = "")
         {
             var newUser = new TUser();
             newUser.SetBaseDetails(user, manager, domain);
             return newUser;
         }
 
+        [Time] [Timeout(1200)]
         private Result<(ILdapSearchResults Results, LdapConnection LdapConnection), Error> PerformLdapSearch(
             string attributeName, string attributeValue, string? domain, bool allAttributes = false)
         {
@@ -236,10 +307,14 @@ namespace BuildingBlocks.Ldap
                     var ldapConnection = _ldapConnections[ldapConfig.FriendlyName];
                     ldapConnection.Connect(ldapConfig.Url, ldapConfig.FinalLdapConnectionPort);
                     ldapConnection.Bind(ldapConfig.BindDn, ldapConfig.BindCredentials);
+                    ldapConnection.ConnectionTimeout = _config.First().Timeout; // Set the timeout for the connection
+
 
                     var ldapAttributes = new TUser().LdapAttributes;
                     var searchFilter = ldapConfig.UserSearchFilter;
                     var filter = string.Format(searchFilter, attributeName, attributeValue);
+                    _logger.LogInformation("LDAP Search Filter: {Filter}", filter);
+
                     var ldapSearchResults = ldapConnection.Search(ldapConfig.SearchBase, LdapConnection.ScopeSub,
                         filter,
                         allAttributes ? null : ldapAttributes, false);
@@ -251,6 +326,12 @@ namespace BuildingBlocks.Ldap
                 }
 
                 return new Error("404", "User not found in any LDAP.");
+            }
+            catch (LdapException e)
+            {
+                var ex = e.Demystify();
+                _logger.LogError(ex, "Error while performing LDAP search.");
+                return new Error("500", ex.Message);
             }
             catch (Exception e)
             {
@@ -267,11 +348,12 @@ namespace BuildingBlocks.Ldap
                 return searchResult.Results.HasMore() ? searchResult.Results.Next() : null;
             }
             catch (Exception ex)
-            {
+            {   
                 return LogAndThrowException(ex);
             }
         }
 
+        [Time] [Timeout(1200)]
         private LdapEntry? GetManagerEntry(LdapEntry userEntry, LdapConnection ldapConnection)
         {
             try
@@ -282,10 +364,8 @@ namespace BuildingBlocks.Ldap
                     return null;
                 }
 
-                var _ldapConfig = _config.First();
-
-
-                var managerSearchFilter = string.Format(_ldapConfig.ManagerSearchFilter, managerDn);
+                var ldapConfig = _config.First();
+                var managerSearchFilter = string.Format(ldapConfig.ManagerSearchFilter, managerDn);
                 //$"(&(objectClass=user)(distinguishedName={managerDn}))";
                 var managerSearchResults = ldapConnection.Search(managerDn, LdapConnection.ScopeBase,
                     managerSearchFilter, null, false);

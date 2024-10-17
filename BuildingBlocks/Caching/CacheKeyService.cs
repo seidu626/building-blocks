@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Globalization;
-using System.Linq;
+﻿using System.Globalization;
 using System.Text;
 using BuildingBlocks.Common;
 using BuildingBlocks.Configuration;
@@ -9,7 +6,7 @@ using BuildingBlocks.SeedWork;
 
 namespace BuildingBlocks.Caching
 {
-    public abstract class CacheKeyService
+    public abstract class CacheKeyService :  ICacheKeyService
     {
         private readonly CacheConfig _cacheConfig;
 

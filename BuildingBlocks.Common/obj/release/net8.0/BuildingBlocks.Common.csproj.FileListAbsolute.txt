@@ -1,0 +1,13 @@
+/home/xper626/Documents/repositories/building-blocks/BuildingBlocks.Common/bin/release/net8.0/BuildingBlocks.Common.deps.json
+/home/xper626/Documents/repositories/building-blocks/BuildingBlocks.Common/bin/release/net8.0/BuildingBlocks.Common.dll
+/home/xper626/Documents/repositories/building-blocks/BuildingBlocks.Common/bin/release/net8.0/BuildingBlocks.Common.pdb
+/home/xper626/Documents/repositories/building-blocks/BuildingBlocks.Common/obj/release/net8.0/BuildingBlocks.Common.csproj.AssemblyReference.cache
+/home/xper626/Documents/repositories/building-blocks/BuildingBlocks.Common/obj/release/net8.0/BuildingBlocks.Common.GeneratedMSBuildEditorConfig.editorconfig
+/home/xper626/Documents/repositories/building-blocks/BuildingBlocks.Common/obj/release/net8.0/BuildingBlocks.Common.AssemblyInfoInputs.cache
+/home/xper626/Documents/repositories/building-blocks/BuildingBlocks.Common/obj/release/net8.0/BuildingBlocks.Common.AssemblyInfo.cs
+/home/xper626/Documents/repositories/building-blocks/BuildingBlocks.Common/obj/release/net8.0/BuildingBlocks.Common.csproj.CoreCompileInputs.cache
+/home/xper626/Documents/repositories/building-blocks/BuildingBlocks.Common/obj/release/net8.0/BuildingBlocks.Common.sourcelink.json
+/home/xper626/Documents/repositories/building-blocks/BuildingBlocks.Common/obj/release/net8.0/BuildingBlocks.Common.dll
+/home/xper626/Documents/repositories/building-blocks/BuildingBlocks.Common/obj/release/net8.0/refint/BuildingBlocks.Common.dll
+/home/xper626/Documents/repositories/building-blocks/BuildingBlocks.Common/obj/release/net8.0/BuildingBlocks.Common.pdb
+/home/xper626/Documents/repositories/building-blocks/BuildingBlocks.Common/obj/release/net8.0/ref/BuildingBlocks.Common.dll

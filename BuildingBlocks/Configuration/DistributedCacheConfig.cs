@@ -13,7 +13,7 @@ namespace BuildingBlocks.Configuration;
 public class DistributedCacheConfig : IConfig
 {
   [JsonConverter(typeof (StringEnumConverter))]
-  public DistributedCacheType DistributedCacheType { get; set; } = DistributedCacheType.Redis;
+  public DistributedCacheType DistributedCacheType { get; set; } = DistributedCacheType.Memory;
 
   public bool Enabled { get; set; }
 

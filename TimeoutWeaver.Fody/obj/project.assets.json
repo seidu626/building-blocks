@@ -1,0 +1,140 @@
+{
+  "version": 3,
+  "targets": {
+    "net8.0": {
+      "FodyHelpers/6.8.2": {
+        "type": "package",
+        "compile": {
+          "lib/netstandard2.0/FodyHelpers.dll": {
+            "related": ".xml"
+          },
+          "lib/netstandard2.0/Mono.Cecil.Pdb.dll": {
+            "related": ".pdb"
+          },
+          "lib/netstandard2.0/Mono.Cecil.Rocks.dll": {
+            "related": ".pdb"
+          },
+          "lib/netstandard2.0/Mono.Cecil.dll": {
+            "related": ".pdb;.Pdb.pdb;.Rocks.pdb"
+          }
+        },
+        "runtime": {
+          "lib/netstandard2.0/FodyHelpers.dll": {
+            "related": ".xml"
+          },
+          "lib/netstandard2.0/Mono.Cecil.Pdb.dll": {
+            "related": ".pdb"
+          },
+          "lib/netstandard2.0/Mono.Cecil.Rocks.dll": {
+            "related": ".pdb"
+          },
+          "lib/netstandard2.0/Mono.Cecil.dll": {
+            "related": ".pdb;.Pdb.pdb;.Rocks.pdb"
+          }
+        },
+        "build": {
+          "build/FodyHelpers.props": {},
+          "build/FodyHelpers.targets": {}
+        }
+      }
+    }
+  },
+  "libraries": {
+    "FodyHelpers/6.8.2": {
+      "sha512": "WItt96EFCARpbWuVEmjE7RKFdMNvRyfdFM4Ckp6h85yA8iEJ4z3jDs4hhTDQckgwqOMf62laXekcFs2h7dHZjQ==",
+      "type": "package",
+      "path": "fodyhelpers/6.8.2",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "build/FodyHelpers.props",
+        "build/FodyHelpers.targets",
+        "fodyhelpers.6.8.2.nupkg.sha512",
+        "fodyhelpers.nuspec",
+        "lib/net472/FodyHelpers.dll",
+        "lib/net472/FodyHelpers.xml",
+        "lib/net472/Mono.Cecil.Pdb.dll",
+        "lib/net472/Mono.Cecil.Pdb.pdb",
+        "lib/net472/Mono.Cecil.Rocks.dll",
+        "lib/net472/Mono.Cecil.Rocks.pdb",
+        "lib/net472/Mono.Cecil.dll",
+        "lib/net472/Mono.Cecil.pdb",
+        "lib/netstandard2.0/FodyHelpers.dll",
+        "lib/netstandard2.0/FodyHelpers.xml",
+        "lib/netstandard2.0/Mono.Cecil.Pdb.dll",
+        "lib/netstandard2.0/Mono.Cecil.Pdb.pdb",
+        "lib/netstandard2.0/Mono.Cecil.Rocks.dll",
+        "lib/netstandard2.0/Mono.Cecil.Rocks.pdb",
+        "lib/netstandard2.0/Mono.Cecil.dll",
+        "lib/netstandard2.0/Mono.Cecil.pdb"
+      ]
+    }
+  },
+  "projectFileDependencyGroups": {
+    "net8.0": [
+      "FodyHelpers >= 6.8.2"
+    ]
+  },
+  "packageFolders": {
+    "/home/xper626/.nuget/packages/": {}
+  },
+  "project": {
+    "version": "1.0.0",
+    "restore": {
+      "projectUniqueName": "/home/xper626/Documents/repositories/building-blocks/TimeoutWeaver.Fody/TimeoutWeaver.Fody.csproj",
+      "projectName": "TimeoutWeaver.Fody",
+      "projectPath": "/home/xper626/Documents/repositories/building-blocks/TimeoutWeaver.Fody/TimeoutWeaver.Fody.csproj",
+      "packagesPath": "/home/xper626/.nuget/packages/",
+      "outputPath": "/home/xper626/Documents/repositories/building-blocks/TimeoutWeaver.Fody/obj/",
+      "projectStyle": "PackageReference",
+      "configFilePaths": [
+        "/home/xper626/.nuget/NuGet/NuGet.Config"
+      ],
+      "originalTargetFrameworks": [
+        "net8.0"
+      ],
+      "sources": {
+        "https://api.nuget.org/v3/index.json": {}
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "projectReferences": {}
+        }
+      },
+      "warningProperties": {
+        "warnAsError": [
+          "NU1605"
+        ]
+      }
+    },
+    "frameworks": {
+      "net8.0": {
+        "targetAlias": "net8.0",
+        "dependencies": {
+          "FodyHelpers": {
+            "target": "Package",
+            "version": "[6.8.2, )"
+          }
+        },
+        "imports": [
+          "net461",
+          "net462",
+          "net47",
+          "net471",
+          "net472",
+          "net48",
+          "net481"
+        ],
+        "assetTargetFallback": true,
+        "warn": true,
+        "frameworkReferences": {
+          "Microsoft.NETCore.App": {
+            "privateAssets": "all"
+          }
+        },
+        "runtimeIdentifierGraphPath": "/home/xper626/.dotnet/sdk/8.0.401/PortableRuntimeIdentifierGraph.json"
+      }
+    }
+  }
+}

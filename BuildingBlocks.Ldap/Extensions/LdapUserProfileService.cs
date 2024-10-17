@@ -1,11 +1,4 @@
-﻿// Decompiled with JetBrains decompiler
-// Type: BuildingBlocks.Ldap.Extensions.LdapUserProfileService`1
-// Assembly: BuildingBlocks, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null
-// MVID: 8587CF18-BE3D-4726-89FF-4AF7AAC01FA5
-// Assembly location: C:\Users\420919\Repositories\STS\Api\BuildingBlocks.dll
-
-#nullable disable
-using System.Runtime.InteropServices.JavaScript;
+﻿#nullable enable
 using System.Security.Claims;
 using System.Security.Principal;
 using BuildingBlocks.Exceptions;
@@ -15,46 +8,84 @@ using Duende.IdentityServer.Extensions;
 using Duende.IdentityServer.Models;
 using Duende.IdentityServer.Services;
 using Microsoft.Extensions.Logging;
+using System.Threading.Tasks;
 
-namespace BuildingBlocks.Ldap.Extensions;
-
-public class LdapUserProfileService<TUser> : IProfileService where TUser : IAppUser, new()
+namespace BuildingBlocks.Ldap.Extensions
 {
-    protected readonly ILogger Logger;
-    protected readonly ILdapUserStore<TUser> Users;
-
-    public LdapUserProfileService(
-        ILdapUserStore<TUser> users,
-        ILogger<LdapUserProfileService<TUser>> logger)
+    public class LdapUserProfileService<TUser> : IProfileService where TUser : IAppUser, new()
     {
-        this.Users = users;
-        this.Logger = (ILogger)logger;
-    }
+        protected readonly ILogger Logger;
+        protected readonly ILdapUserStore<TUser> Users;
 
-    public Task GetProfileDataAsync(ProfileDataRequestContext context)
-    {
-        context.LogProfileRequest(this.Logger);
-        if (context.RequestedClaimTypes.Any<string>())
+        public LdapUserProfileService(ILdapUserStore<TUser> users, ILogger<LdapUserProfileService<TUser>> logger)
         {
-            Result<TUser, Error> bySubjectId =
-                this.Users.FindBySubjectId(((IPrincipal)context.Subject).GetSubjectId());
-            context.AddRequestedClaims((IEnumerable<Claim>)bySubjectId.Value.Claims);
+            this.Users = users ?? throw new ArgumentNullException(nameof(users));
+            this.Logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        context.LogIssuedClaims(this.Logger);
-        return Task.CompletedTask;
-    }
+        public async Task GetProfileDataAsync(ProfileDataRequestContext context)
+        {
+            context.LogProfileRequest(this.Logger);
 
-    public Task IsActiveAsync(IsActiveContext context)
-    {
-        this.Logger.LogDebug("IsActive called from: {caller}", (object)context.Caller);
-        Result<TUser, Error> bySubjectId =
-            this.Users.FindBySubjectId(((IPrincipal)context.Subject).GetSubjectId());
-        IsActiveContext isActiveContext = context;
-        TUser user = bySubjectId.Value;
-        ref TUser local = ref user;
-        int num = (object)local != null ? (local.IsActive ? 1 : 0) : 0;
-        isActiveContext.IsActive = num != 0;
-        return Task.CompletedTask;
+            try
+            {
+                if (context.RequestedClaimTypes.Any())
+                {
+                    // Find the user by subject ID (this is typically the user's unique identifier in the store)
+                    var userResult = await Users.FindBySubjectIdAsync(context.Subject.GetSubjectId());
+
+                    if (userResult.IsSuccess)
+                    {
+                        var user = userResult.Value;
+
+                        // Add the requested claims from the user
+                        context.AddRequestedClaims(user.Claims);
+                    }
+                    else
+                    {
+                        Logger.LogError("Failed to retrieve user claims for subject ID: {subjectId}. Error: {error}",
+                            context.Subject.GetSubjectId(), userResult.Error);
+                    }
+                }
+
+                context.LogIssuedClaims(this.Logger);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "An error occurred while getting profile data for subject ID: {subjectId}",
+                    context.Subject.GetSubjectId());
+                throw; // You can choose to rethrow or return a failed result.
+            }
+        }
+
+        public async Task IsActiveAsync(IsActiveContext context)
+        {
+            Logger.LogDebug("IsActive called from: {caller}", context.Caller);
+
+            try
+            {
+                // Find the user by subject ID
+                var userResult = await Users.FindBySubjectIdAsync(context.Subject.GetSubjectId());
+
+                if (userResult.IsSuccess && userResult.Value != null)
+                {
+                    // Check if the user is active
+                    context.IsActive = userResult.Value.IsActive;
+                }
+                else
+                {
+                    // Log failure to retrieve user or inactive user
+                    Logger.LogWarning("User with subject ID: {subjectId} is not found or inactive. Error: {error}",
+                        context.Subject.GetSubjectId(), userResult.Error?.FriendlyMessage);
+                    context.IsActive = false;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "An error occurred while determining if user is active for subject ID: {subjectId}",
+                    context.Subject.GetSubjectId());
+                context.IsActive = false; // Fail safely
+            }
+        }
     }
 }

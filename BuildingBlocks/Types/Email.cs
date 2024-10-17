@@ -11,12 +11,12 @@ using CSharpFunctionalExtensions;
 
 namespace BuildingBlocks.Types;
 
-public class Email : ValueObject
+public class Email : BuildingBlocks.SeedWork.ValueObject
 {
   private readonly 
 #nullable disable
     string _value;
-
+    
   private Email(string value) => this._value = value;
 
   public static Result<Email, Error> Create(string email)

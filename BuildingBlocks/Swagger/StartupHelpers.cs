@@ -12,12 +12,14 @@ public static class SwaggerStartupHelper
         services.AddEndpointsApiExplorer();
         services.AddOpenApiDocument(configure =>
         {
+            // Add custom processor to handle OpenApiParameterIgnoreAttribute
+            configure.OperationProcessors.Add(new OpenApiParameterIgnoreProcessor());
             configure.Title = identityApiConfig.ApiName;
             configure.Version = identityApiConfig.ApiVersion;
 
             configure.AddSecurity("OAuth2", new OpenApiSecurityScheme
             {
-                Type = OpenApiSecuritySchemeType.OAuth2,
+                Type = OpenApiSecuritySchemeType.OAuth2, 
                 Flows = new OpenApiOAuthFlows
                 {
                     AuthorizationCode = new OpenApiOAuthFlow

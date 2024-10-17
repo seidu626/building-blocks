@@ -12,6 +12,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BuildingBlocks.Ussd.Sdk", "
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BuildingBlocks.Persistence", "BuildingBlocks.Persistence\BuildingBlocks.Persistence.csproj", "{90C61690-41CD-4523-B981-ADC9A510104F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BuildingBlocks.Common", "BuildingBlocks.Common\BuildingBlocks.Common.csproj", "{10DAFB53-1DCE-4D7D-8F82-4D69D889C8C2}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TimeoutWeaver.Fody", "TimeoutWeaver.Fody\TimeoutWeaver.Fody.csproj", "{B90EDEB9-1F00-44A6-8B95-C7613673893C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -42,5 +46,13 @@ Global
 		{90C61690-41CD-4523-B981-ADC9A510104F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{90C61690-41CD-4523-B981-ADC9A510104F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{90C61690-41CD-4523-B981-ADC9A510104F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{10DAFB53-1DCE-4D7D-8F82-4D69D889C8C2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{10DAFB53-1DCE-4D7D-8F82-4D69D889C8C2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{10DAFB53-1DCE-4D7D-8F82-4D69D889C8C2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{10DAFB53-1DCE-4D7D-8F82-4D69D889C8C2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B90EDEB9-1F00-44A6-8B95-C7613673893C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B90EDEB9-1F00-44A6-8B95-C7613673893C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B90EDEB9-1F00-44A6-8B95-C7613673893C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B90EDEB9-1F00-44A6-8B95-C7613673893C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
