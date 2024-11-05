@@ -5,7 +5,7 @@
 // Assembly location: C:\Users\420919\Repositories\STS\Api\BuildingBlocks.dll
 
 #nullable disable
-namespace BuildingBlocks.Exceptions;
+namespace BuildingBlocks.Common;
 
 public abstract class ValueObject
 {

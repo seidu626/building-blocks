@@ -1102,6 +1102,7 @@ public static class StringExtensions
 
     public static string RemoveWhiteSpaces(this string str)
     {
+        if (str.IsNullOrEmpty()) return "";
         return Regex.Replace(str, @"\s+", "");
     }
 

@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Net.Security;
 using BuildingBlocks.Common.AOP;
 using BuildingBlocks.Exceptions;
@@ -17,7 +18,8 @@ namespace BuildingBlocks.Ldap
     {
         private readonly ILogger<LdapService<TUser>> _logger;
         private readonly ICollection<LdapConfig> _config;
-        private readonly Dictionary<string, LdapConnection> _ldapConnections = new();
+        private readonly ConcurrentDictionary<string, ConcurrentBag<LdapConnection>> _connectionPools = new();
+        private readonly int _maxPoolSize; // Maximum connections in the pool
         private readonly AsyncRetryPolicy _retryPolicy;
         private readonly AsyncCircuitBreakerPolicy _circuitBreakerPolicy;
 
@@ -25,7 +27,8 @@ namespace BuildingBlocks.Ldap
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _config = config.Connections ?? throw new ArgumentNullException(nameof(config.Connections));
-            InitializeLdapConnections();
+            _maxPoolSize = _config.First().MaxPoolSize;
+            InitializeConnectionPools();
 
             // Define the retry policy
             _retryPolicy = Policy
@@ -44,15 +47,66 @@ namespace BuildingBlocks.Ldap
                     () => { _logger.LogInformation("Circuit breaker reset for LDAP."); });
         }
 
-        private void InitializeLdapConnections()
+        #region Helpers
+
+        private void InitializeConnectionPools()
         {
             foreach (var ldapConfig in _config)
             {
-                var connection = new LdapConnection { SecureSocketLayer = ldapConfig.Ssl };
-                connection.UserDefinedServerCertValidationDelegate += CertificateValidationCallBack;
-                _ldapConnections.Add(ldapConfig.FriendlyName, connection);
+                _connectionPools[ldapConfig.FriendlyName] = new ConcurrentBag<LdapConnection>();
             }
         }
+
+        private LdapConnection GetConnectionFromPool(LdapConfig ldapConfig)
+        {
+            if (_connectionPools.TryGetValue(ldapConfig.FriendlyName, out var pool))
+            {
+                if (pool.TryTake(out var connection) && IsConnectionValid(connection))
+                {
+                    _logger.LogInformation("Reusing existing LDAP connection.");
+                    return connection;
+                }
+            }
+
+            _logger.LogInformation("Creating new LDAP connection.");
+            return CreateLdapConnection(ldapConfig);
+        }
+
+        private void ReturnConnectionToPool(LdapConfig ldapConfig, LdapConnection connection)
+        {
+            if (_connectionPools.TryGetValue(ldapConfig.FriendlyName, out var pool) &&
+                pool.Count < _maxPoolSize)
+            {
+                _logger.LogInformation("Returning LDAP connection to the pool.");
+                pool.Add(connection);
+            }
+            else
+            {
+                _logger.LogInformation("Disposing unused LDAP connection.");
+                connection.Disconnect();
+            }
+        }
+
+        private bool IsConnectionValid(LdapConnection connection)
+        {
+            try
+            {
+                return connection.Connected;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private LdapConnection CreateLdapConnection(LdapConfig ldapConfig)
+        {
+            var connection = new LdapConnection { SecureSocketLayer = ldapConfig.Ssl };
+            connection.UserDefinedServerCertValidationDelegate += CertificateValidationCallBack;
+            connection.Connect(ldapConfig.Url, ldapConfig.FinalLdapConnectionPort);
+            return connection;
+        }
+
 
         /// <summary>
         /// https://learn.microsoft.com/en-us/previous-versions/office/developer/exchange-server-2010/dd633677(v=exchg.80)?redirectedfrom=MSDN
@@ -83,6 +137,7 @@ namespace BuildingBlocks.Ldap
             return sslPolicyErrors == SslPolicyErrors.RemoteCertificateChainErrors && IsChainValid(chain);
         }
 
+
         private bool IsChainValid(System.Security.Cryptography.X509Certificates.X509Chain chain)
         {
             if (chain == null || chain.ChainStatus == null)
@@ -105,6 +160,9 @@ namespace BuildingBlocks.Ldap
 
             return true;
         }
+
+        #endregion
+
 
         public async Task<Result<TUser, Error>> Login(string username, string password)
         {
@@ -157,29 +215,6 @@ namespace BuildingBlocks.Ldap
                 new Error("404", "User not found with the given phone number."));
         }
 
-        private IEnumerable<string> GetFormattedPhoneNumbers(string phone)
-        {
-            var formattedPhones = new List<string>();
-
-            // Add the original phone number
-            formattedPhones.Add(phone);
-
-            // Add the phone number with international code (e.g., +233)
-            if (phone.StartsWith("0"))
-            {
-                formattedPhones.Add("233" + phone.Substring(1)); // Example: 0540618592 -> 233540618592
-            }
-
-            // Add the local format if the phone number starts with the country code
-            if (phone.StartsWith("233"))
-            {
-                formattedPhones.Add("0" + phone.Substring(3)); // Example: 233540618592 -> 0540618592
-            }
-
-            return formattedPhones;
-        }
-
-
         private Result<TUser, Error> FindUserByUsername(string username, string? domain)
         {
             return GetUserByAttribute("sAMAccountName", username, domain);
@@ -192,168 +227,9 @@ namespace BuildingBlocks.Ldap
                 return await _retryPolicy.ExecuteAsync(() => PerformLdapAuthentication(username, password, domain));
             });
         }
-        
-        [Time] [Timeout(1200)]
-        private Task<Result<TUser, Error>> PerformLdapAuthentication(string username, string password,
-            string? domain)
-        {
-            try
-            {
-                // Actual LDAP authentication and result handling
-                var searchResult = PerformLdapSearch("sAMAccountName", username, domain);
-                if (searchResult.IsFailure) return Task.FromResult<Result<TUser, Error>>(searchResult.Error);
 
-                var userEntry = GetUserFromSearchResults(searchResult.Value);
-                if (userEntry.IsFailure) return Task.FromResult<Result<TUser, Error>>(userEntry.Error);
-                if (userEntry.Value == default)
-                {
-                    return Task.FromResult<Result<TUser, Error>>(new Error("500", "UserEntry is null"));
-                }
-
-                searchResult.Value.LdapConnection.Bind(userEntry.Value.Dn, password);
-                if (!searchResult.Value.LdapConnection.Bound)
-                {
-                    return Task.FromResult<Result<TUser, Error>>(new Error("404", "User not found in any LDAP."));
-                }
-
-                var managerEntry = GetManagerEntry(userEntry.Value, searchResult.Value.LdapConnection);
-                var user = CreateUser(userEntry.Value, managerEntry, domain);
-                searchResult.Value.LdapConnection.Disconnect();
-                return Task.FromResult<Result<TUser, Error>>(user);
-            }
-            catch (LdapException ex)
-            {
-                _logger.LogError(ex, "LDAP connection or authentication error.");
-                return Task.FromResult<Result<TUser, Error>>(new Error("500", ex.Message));
-            }
-        }
-
-        [Time] [Timeout(1200)]
-        private Result<TUser, Error> GetUserByAttribute(string attributeName, string attributeValue, string? domain)
-        {
-            var searchResult = PerformLdapSearch(attributeName, attributeValue, domain);
-            if (searchResult.IsFailure) return searchResult.Error;
-
-            var userEntry = GetUserFromSearchResults(searchResult.Value);
-            if (userEntry.IsFailure) return userEntry.Error;
-
-            if (userEntry.Value == null)
-            {
-                return new Error("404", "User not found in any LDAP.");
-            }
-
-            var managerEntry = GetManagerEntry(userEntry.Value, searchResult.Value.LdapConnection);
-            return CreateUser(userEntry.Value, managerEntry, domain ?? "local");
-        }
-
-        [Time] [Timeout(1200)]
-        public Task<Result<List<string>, Error>> GetUserAttributes(string attributeName, string attributeValue,
-            string domain)
-        {
-            var searchResult = PerformLdapSearch(attributeName, attributeValue, domain, true);
-            if (searchResult.IsFailure) return Task.FromResult<Result<List<string>, Error>>(searchResult.Error);
-            var userAttributes = new List<string>();
-
-            while (searchResult.Value.Results.HasMore())
-            {
-                try
-                {
-                    var ldapEntry = searchResult.Value.Results.Next();
-                    _logger.LogInformation("DN: {Dn}", ldapEntry.Dn);
-                    foreach (LdapAttribute attribute in ldapEntry.GetAttributeSet())
-                    {
-                        userAttributes.Add($"{attribute.Name} = {attribute.StringValue}");
-                    }
-
-                    return Task.FromResult<Result<List<string>, Error>>(userAttributes);
-                }
-                catch (Exception e)
-                {
-                    var ex = e.Demystify();
-                    _logger.LogError(ex, ex.Message);
-                }
-            }
-
-            return Task.FromResult<Result<List<string>, Error>>(userAttributes);
-        }
-
-        private TUser CreateUser(LdapEntry user, LdapEntry? manager = null, string? domain = "")
-        {
-            var newUser = new TUser();
-            newUser.SetBaseDetails(user, manager, domain);
-            return newUser;
-        }
-
-        [Time] [Timeout(1200)]
-        private Result<(ILdapSearchResults Results, LdapConnection LdapConnection), Error> PerformLdapSearch(
-            string attributeName, string attributeValue, string? domain, bool allAttributes = false)
-        {
-            try
-            {
-                var concernedConfigs = _config.Where(f => f.IsConcerned(attributeValue)).ToList();
-
-                if (!string.IsNullOrEmpty(domain))
-                {
-                    concernedConfigs = concernedConfigs.Where(e => e.FriendlyName.Equals(domain)).ToList();
-                }
-
-                if (!concernedConfigs.Any())
-                {
-                    return new Error("404", "No searchable LDAP");
-                }
-
-                foreach (var ldapConfig in concernedConfigs)
-                {
-                    var ldapConnection = _ldapConnections[ldapConfig.FriendlyName];
-                    ldapConnection.Connect(ldapConfig.Url, ldapConfig.FinalLdapConnectionPort);
-                    ldapConnection.Bind(ldapConfig.BindDn, ldapConfig.BindCredentials);
-                    ldapConnection.ConnectionTimeout = _config.First().Timeout; // Set the timeout for the connection
-
-
-                    var ldapAttributes = new TUser().LdapAttributes;
-                    var searchFilter = ldapConfig.UserSearchFilter;
-                    var filter = string.Format(searchFilter, attributeName, attributeValue);
-                    _logger.LogInformation("LDAP Search Filter: {Filter}", filter);
-
-                    var ldapSearchResults = ldapConnection.Search(ldapConfig.SearchBase, LdapConnection.ScopeSub,
-                        filter,
-                        allAttributes ? null : ldapAttributes, false);
-
-                    if (ldapSearchResults.HasMore())
-                    {
-                        return (ldapSearchResults, ldapConnection);
-                    }
-                }
-
-                return new Error("404", "User not found in any LDAP.");
-            }
-            catch (LdapException e)
-            {
-                var ex = e.Demystify();
-                _logger.LogError(ex, "Error while performing LDAP search.");
-                return new Error("500", ex.Message);
-            }
-            catch (Exception e)
-            {
-                var ex = e.Demystify();
-                return new Error("500", ex.Message, ex);
-            }
-        }
-
-        private Result<LdapEntry?, Error> GetUserFromSearchResults(
-            (ILdapSearchResults Results, LdapConnection LdapConnection) searchResult)
-        {
-            try
-            {
-                return searchResult.Results.HasMore() ? searchResult.Results.Next() : null;
-            }
-            catch (Exception ex)
-            {   
-                return LogAndThrowException(ex);
-            }
-        }
-
-        [Time] [Timeout(1200)]
+        [Time]
+        [Timeout(1200)]
         private LdapEntry? GetManagerEntry(LdapEntry userEntry, LdapConnection ldapConnection)
         {
             try
@@ -379,6 +255,235 @@ namespace BuildingBlocks.Ldap
                 return null;
             }
         }
+
+        #region Utils
+
+        private IEnumerable<string> GetFormattedPhoneNumbers(string phone)
+        {
+            var formattedPhones = new List<string>();
+
+            // Add the original phone number
+            formattedPhones.Add(phone);
+
+            // Add the phone number with international code (e.g., +233)
+            if (phone.StartsWith("0"))
+            {
+                formattedPhones.Add("233" + phone.Substring(1)); // Example: 0540618592 -> 233540618592
+            }
+
+            // Add the local format if the phone number starts with the country code
+            if (phone.StartsWith("233"))
+            {
+                formattedPhones.Add("0" + phone.Substring(3)); // Example: 233540618592 -> 0540618592
+            }
+
+            return formattedPhones;
+        }
+
+        [Time]
+        [Timeout(1200)]
+        private Result<TUser, Error> GetUserByAttribute(string attributeName, string attributeValue, string? domain)
+        {
+            var ldapConfig = _config.First();
+            var connection = GetConnectionFromPool(ldapConfig);
+            try
+            {
+                connection.Bind(ldapConfig.BindDn, ldapConfig.BindCredentials);
+                var searchResult = PerformLdapSearch(attributeName, attributeValue, ldapConfig, connection);
+                if (searchResult.IsFailure) return searchResult.Error;
+
+                var userEntry = GetUserFromSearchResults(searchResult.Value);
+                if (userEntry.IsFailure) return userEntry.Error;
+
+                if (userEntry.Value == null)
+                {
+                    return new Error("404", "User not found in any LDAP.");
+                }
+
+                var managerEntry = GetManagerEntry(userEntry.Value, searchResult.Value.LdapConnection);
+                return CreateUser(userEntry.Value, managerEntry, domain ?? "local");
+            }
+            catch (LdapException e)
+            {
+                var ex = e.Demystify();
+                _logger.LogError(ex, ex.LdapErrorMessage);
+                return new Error("500", ex.LdapErrorMessage, ex);
+            }
+            catch (Exception e)
+            {
+                var ex = e.Demystify();
+                _logger.LogError(ex, ex.Message);
+                return new Error("500", ex.Message, ex);
+            }
+            finally
+            {
+                ReturnConnectionToPool(ldapConfig, connection);
+            }
+        }
+
+        /// <summary>
+        /// https://github.com/dsbenghe/Novell.Directory.Ldap.NETStandard/blob/master/original_samples/Samples/Search.cs
+        /// </summary>
+        /// <param name="attributeName"></param>
+        /// <param name="attributeValue"></param>
+        /// <param name="domain"></param>
+        /// <returns></returns>
+        [Time]
+        [Timeout(1200)]
+        public Task<Result<List<string>, Error>> GetUserAttributes(string attributeName, string attributeValue,
+            string domain)
+        {
+            var ldapConfig = _config.First();
+            var connection = GetConnectionFromPool(ldapConfig);
+
+            try
+            {
+                connection.Bind(ldapConfig.BindDn, ldapConfig.BindCredentials);
+                var searchResult = PerformLdapSearch(attributeName, attributeValue, ldapConfig, connection);
+                if (searchResult.IsFailure) return Task.FromResult<Result<List<string>, Error>>(searchResult.Error);
+                var userAttributes = new List<string>();
+
+                while (searchResult.Value.Results.HasMore())
+                {
+                    LdapEntry? ldapEntry = null;
+                    try
+                    {
+                        ldapEntry = searchResult.Value.Results.Next();
+                        _logger.LogInformation("DN: {Dn}", ldapEntry.Dn);
+                    }
+                    catch (LdapException e)
+                    {
+                        var ex = e.Demystify();
+                        _logger.LogError(ex, ex.LdapErrorMessage);
+                        // Exception is thrown, go for next entry
+                        continue;
+                    }
+
+                    foreach (LdapAttribute attribute in ldapEntry.GetAttributeSet())
+                    {
+                        userAttributes.Add($"{attribute.Name} = {attribute.StringValue}");
+                    }
+
+                    return Task.FromResult<Result<List<string>, Error>>(userAttributes);
+                }
+
+                return Task.FromResult<Result<List<string>, Error>>(userAttributes);
+            }
+            catch (LdapException e)
+            {
+                var ex = e.Demystify();
+                _logger.LogError(ex, ex.LdapErrorMessage);
+                return Task.FromResult<Result<List<string>, Error>>(new Error("500", ex.LdapErrorMessage, ex));
+            }
+            catch (Exception e)
+            {
+                var ex = e.Demystify();
+                _logger.LogError(ex, ex.Message);
+                return Task.FromResult<Result<List<string>, Error>>(new Error("500", ex.Message, ex));
+            }
+            finally
+            {
+                ReturnConnectionToPool(ldapConfig, connection);
+            }
+        }
+
+        private TUser CreateUser(LdapEntry user, LdapEntry? manager = null, string? domain = "")
+        {
+            var newUser = new TUser();
+            newUser.SetBaseDetails(user, manager, domain);
+            return newUser;
+        }
+
+        private Task<Result<TUser, Error>> PerformLdapAuthentication(string username, string password,
+            string? domain)
+        {
+            var ldapConfig = _config.First(); // Simplified: Select the first LDAP config
+            var connection = GetConnectionFromPool(ldapConfig);
+
+            try
+            {
+                connection.Bind(ldapConfig.BindDn, ldapConfig.BindCredentials);
+                // Perform authentication logic
+                var searchResult = PerformLdapSearch("sAMAccountName", username, ldapConfig, connection);
+                if (searchResult.IsFailure) return Task.FromResult<Result<TUser, Error>>(searchResult.Error);
+
+                var userEntry = GetUserFromSearchResults(searchResult.Value);
+                if (userEntry.IsFailure) return Task.FromResult<Result<TUser, Error>>(userEntry.Error);
+                if (userEntry.Value == default)
+                {
+                    return Task.FromResult<Result<TUser, Error>>(new Error("500", "UserEntry is null"));
+                }
+
+                searchResult.Value.LdapConnection.Bind(userEntry.Value.Dn, password);
+                if (!searchResult.Value.LdapConnection.Bound)
+                {
+                    return Task.FromResult<Result<TUser, Error>>(new Error("404", "User not found in any LDAP."));
+                }
+
+                var managerEntry = GetManagerEntry(userEntry.Value, searchResult.Value.LdapConnection);
+                var user = CreateUser(userEntry.Value, managerEntry, domain);
+                return Task.FromResult<Result<TUser, Error>>(user);
+            }
+            catch (LdapException e)
+            {
+                var ex = e.Demystify();
+                _logger.LogError(ex, "LDAP connection or authentication error: {Error}", ex.LdapErrorMessage);
+                return Task.FromResult<Result<TUser, Error>>(new Error("500", ex.LdapErrorMessage, ex));
+            }
+            finally
+            {
+                ReturnConnectionToPool(ldapConfig, connection);
+            }
+        }
+
+        [Time]
+        [Timeout(1200)]
+        private Result<(ILdapSearchResults Results, LdapConnection LdapConnection), Error> PerformLdapSearch(
+            string attributeName, string attributeValue, LdapConfig ldapConfig,
+            LdapConnection connection, bool allAttributes = false)
+        {
+            try
+            {
+                var ldapAttributes = new TUser().LdapAttributes;
+                var searchFilter = ldapConfig.UserSearchFilter;
+                var filter = string.Format(searchFilter, attributeName, attributeValue);
+                _logger.LogInformation("LDAP Search Filter: {Filter}", filter);
+
+                var ldapSearchResults = connection.Search(ldapConfig.SearchBase, LdapConnection.ScopeSub,
+                    filter,
+                    allAttributes ? null : ldapAttributes, false);
+
+                return ldapSearchResults.HasMore()
+                    ? (ldapSearchResults, connection)
+                    : new Error("404", "User not found in any LDAP.");
+            }
+            catch (LdapException e)
+            {
+                var ex = e.Demystify();
+                _logger.LogError(ex, "Error while performing LDAP search.");
+                return new Error("500", ex.LdapErrorMessage);
+            }
+            catch (Exception e)
+            {
+                var ex = e.Demystify();
+                return new Error("500", ex.Message, ex);
+            }
+        }
+
+        private Result<LdapEntry?, Error> GetUserFromSearchResults(
+            (ILdapSearchResults Results, LdapConnection LdapConnection) searchResult)
+        {
+            try
+            {
+                return searchResult.Results.HasMore() ? searchResult.Results.Next() : null;
+            }
+            catch (Exception ex)
+            {
+                return LogAndThrowException(ex);
+            }
+        }
+
+        #endregion
 
         void PrintAttributes(LdapEntry? entry)
         {

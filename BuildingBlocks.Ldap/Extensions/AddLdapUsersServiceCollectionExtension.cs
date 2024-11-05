@@ -49,7 +49,7 @@ public static class AddLdapUsersServiceCollectionExtension
         if (extensionConfig.Connections == null || extensionConfig.Connections.Count == 0)
         {
             extensionConfig.Redis = ldapConfig.Redis;
-            extensionConfig.RefreshClaimsInSeconds = ldapConfig.RefreshClaimsInSeconds ?? 30;
+            extensionConfig.RefreshClaimsInSeconds = ldapConfig.RefreshClaimsInSeconds ?? 1800;
             extensionConfig.Connections = new List<LdapConfig> { ldapConfig };
         }
 

@@ -3,6 +3,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Polly;
+using Polly.Timeout;
+using System.Net.Http;
 
 namespace BuildingBlocks.Polly;
 
@@ -17,7 +19,7 @@ public static class PollyClientExtensions
             var pollySettings = serviceProvider.GetRequiredService<IOptions<PollySettings>>().Value;
             var logger = serviceProvider.GetRequiredService<ILogger<BaseClient>>();
 
-            // Retry policy
+            // Retry Policy
             var retryPolicy = Policy
                 .Handle<HttpRequestException>()
                 .OrResult<HttpResponseMessage>(r => !r.IsSuccessStatusCode)
@@ -31,7 +33,7 @@ public static class PollyClientExtensions
                             $"Retry {retryAttempt} after {timespan.TotalSeconds} seconds due to {outcome.Exception?.Message ?? outcome.Result.StatusCode.ToString()}");
                     });
 
-            // Circuit breaker policy
+            // Circuit Breaker Policy
             var circuitBreakerPolicy = Policy
                 .Handle<HttpRequestException>()
                 .OrResult<HttpResponseMessage>(r => !r.IsSuccessStatusCode)
@@ -40,41 +42,65 @@ public static class PollyClientExtensions
                     TimeSpan.FromSeconds(pollySettings.CircuitBreakerPolicy.DurationOfBreakSeconds),
                     onBreak: (outcome, breakDelay) =>
                     {
-                        logger.LogWarning(
-                            $"Circuit breaker opened for {breakDelay.TotalSeconds} seconds due to {outcome.Exception?.Message ?? outcome.Result.StatusCode.ToString()}");
+                        logger.LogWarning($"Circuit breaker opened for {breakDelay.TotalSeconds} seconds.");
                     },
-                    onReset: () => { logger.LogInformation("Circuit breaker reset."); },
-                    onHalfOpen: () =>
-                    {
-                        logger.LogInformation("Circuit breaker is half-open. Next call is a trial.");
-                    });
+                    onReset: () => logger.LogInformation("Circuit breaker reset."),
+                    onHalfOpen: () => logger.LogInformation("Circuit breaker is half-open."));
 
-            // Timeout Policy: Consider adding a timeout policy to prevent requests from hanging indefinitely.
-            var timeoutPolicy = Policy.TimeoutAsync<HttpResponseMessage>(TimeSpan.FromSeconds(30));
+            // Timeout Policy for Each Individual Request
+            var requestTimeoutPolicy = Policy.TimeoutAsync<HttpResponseMessage>(
+                TimeSpan.FromSeconds(pollySettings.Timeout),
+                TimeoutStrategy.Pessimistic,
+                onTimeoutAsync: (context, timespan, task) =>
+                {
+                    logger.LogWarning($"Request timed out after {timespan.TotalSeconds} seconds.");
+                    return Task.CompletedTask;
+                });
 
-            var bulkheadPolicy = Policy.BulkheadAsync<HttpResponseMessage>(maxParallelization: 10,
+            // Bulkhead Policy to Limit Parallel Requests
+            var bulkheadPolicy = Policy.BulkheadAsync<HttpResponseMessage>(
+                maxParallelization: 10,
                 maxQueuingActions: 20,
                 onBulkheadRejectedAsync: async context =>
                 {
                     logger.LogWarning("Bulkhead limit reached. Request rejected.");
                 });
 
+            // Fallback Policy for Unavailable Service
             var fallbackPolicy = Policy<HttpResponseMessage>
                 .Handle<HttpRequestException>()
                 .OrResult(msg => !msg.IsSuccessStatusCode)
-                .FallbackAsync(new HttpResponseMessage(System.Net.HttpStatusCode.ServiceUnavailable)
+                .FallbackAsync(
+                    new HttpResponseMessage(System.Net.HttpStatusCode.ServiceUnavailable)
                     {
                         Content = new StringContent("Service is unavailable. Please try again later.")
                     },
                     onFallbackAsync: async (outcome, context) =>
                     {
-                        logger.LogWarning("Fallback triggered due to {Reason}",
+                        logger.LogWarning("Fallback triggered: {Reason}",
                             outcome.Exception?.Message ?? outcome.Result.StatusCode.ToString());
                     });
 
-            return Policy.WrapAsync(retryPolicy, circuitBreakerPolicy, timeoutPolicy, bulkheadPolicy, fallbackPolicy);
+            // **Global Timeout Policy** to Limit Entire Execution Time of All Policies
+            var globalTimeoutPolicy = Policy.TimeoutAsync<HttpResponseMessage>(
+                TimeSpan.FromSeconds(pollySettings.GlobalTimeout),
+                TimeoutStrategy.Optimistic,
+                onTimeoutAsync: (context, timespan, task) =>
+                {
+                    logger.LogError($"Total execution time exceeded {timespan.TotalSeconds} seconds. Exiting.");
+                    return Task.CompletedTask;
+                });
+
+            // **Wrap all Policies** with Global Timeout
+            return Policy.WrapAsync(
+                globalTimeoutPolicy, 
+                fallbackPolicy, 
+                bulkheadPolicy, 
+                circuitBreakerPolicy, 
+                requestTimeoutPolicy, 
+                retryPolicy);
         });
-        
+
         return builder;
     }
 }

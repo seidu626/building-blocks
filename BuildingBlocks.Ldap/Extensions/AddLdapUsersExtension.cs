@@ -1,5 +1,4 @@
-﻿using System.Runtime.CompilerServices;
-using BuildingBlocks.Ldap.UserStore;
+﻿using BuildingBlocks.Ldap.UserStore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -7,6 +6,15 @@ namespace BuildingBlocks.Ldap.Extensions;
 
 public static class AddLdapUsersExtension
 {
+    /// <summary>
+    /// Adds the LDAP users mechanism to IdentityServer.
+    /// </summary>
+    /// <typeparam name="TUserDetails">The type of the user details.</typeparam>
+    /// <param name="builder">The builder.</param>
+    /// <param name="configuration">The configuration.</param>
+    /// <returns>
+    /// Returns the builder instance.   
+    /// </returns>
     public static IIdentityServerBuilder AddLdapUsers<TUserDetails>(
         this IIdentityServerBuilder builder,
         IConfiguration configuration)
@@ -21,6 +29,17 @@ public static class AddLdapUsersExtension
         return builder;
     }
 
+    /// <summary>
+    /// Adds Ldap Users to identity server.
+    /// </summary>
+    /// <typeparam name="TUserDetails">The type of the user details.</typeparam>
+    /// <typeparam name="TCustomUserStore">The type of the custom user store.</typeparam>
+    /// <param name="builder">The builder.</param>
+    /// <param name="configuration">The ldap configuration.</param>
+    /// <param name="customUserStore">The custom user store (ILdapUserStore).</param>
+    /// <returns>
+    /// Returns the builder instance
+    /// </returns>
     public static IIdentityServerBuilder AddLdapUsers<TUserDetails, TCustomUserStore>(
         this IIdentityServerBuilder builder,
         IConfiguration configuration,
@@ -39,53 +58,30 @@ public static class AddLdapUsersExtension
         IIdentityServerBuilder builder,
         IConfiguration configuration)
     {
-        IConfigurationSection section = configuration.GetSection("LdapServerConfiguration");
-        ExtensionConfig extensionConfig = (ExtensionConfig)((IConfiguration)section).Get(typeof(ExtensionConfig));
-        LdapConfig ldapConfig1 = new LdapConfig();
-        ICollection<LdapConfig> connections = extensionConfig.Connections;
-        int num;
-        if (connections == null)
+        var section = configuration.GetSection("LdapServerConfiguration");
+        var extensionConfig = section.Get<ExtensionConfig>() ?? new ExtensionConfig();
+        var ldapConfig = extensionConfig.Connections?.FirstOrDefault() ?? section.Get<LdapConfig>() ?? new LdapConfig();
+
+        if (extensionConfig.Connections == null || !extensionConfig.Connections.Any())
         {
-            num = 1;
-        }
-        else
-        {
-            int count = connections.Count;
-            num = 0;
+            ldapConfig.RefreshClaimsInSeconds ??= 1800;
+            extensionConfig.Connections = new List<LdapConfig> { ldapConfig };
         }
 
-        if (num != 0)
-        {
-            ldapConfig1 = (LdapConfig)((IConfiguration)section).Get(typeof(LdapConfig)) ?? new LdapConfig();
-            extensionConfig.Redis = ldapConfig1.Redis;
-            extensionConfig.RefreshClaimsInSeconds = ldapConfig1.RefreshClaimsInSeconds ?? 30;
-            extensionConfig.Connections = (ICollection<LdapConfig>)new List<LdapConfig>()
-            {
-                ldapConfig1
-            };
-        }
-
-        int configIndex = 0;
-        extensionConfig.Connections.ToList<LdapConfig>().ForEach((Action<LdapConfig>)(f =>
-        {
-            ++configIndex;
-            LdapConfig ldapConfig2 = f;
-            string str;
-            if (string.IsNullOrEmpty(f.FriendlyName))
-            {
-                DefaultInterpolatedStringHandler interpolatedStringHandler = new DefaultInterpolatedStringHandler(8, 1);
-                interpolatedStringHandler.AppendLiteral("Config #");
-                interpolatedStringHandler.AppendFormatted<int>(configIndex);
-                str = interpolatedStringHandler.ToStringAndClear();
-            }
-            else
-                str = f.FriendlyName;
-
-            ldapConfig2.FriendlyName = str;
-        }));
-        builder.Services.AddSingleton<LdapConfig>(ldapConfig1);
-        builder.Services.AddSingleton<ExtensionConfig>(extensionConfig);
+        SetFriendlyNames(extensionConfig.Connections);
+        builder.Services.AddSingleton(ldapConfig);
+        builder.Services.AddSingleton(extensionConfig);
         builder.Services.AddSingleton<LdapConnectionPool>();
-        return ldapConfig1;
+
+        return ldapConfig;
+    }
+
+    private static void SetFriendlyNames(ICollection<LdapConfig> connections)
+    {
+        int index = 1;
+        foreach (var config in connections)
+        {
+            config.FriendlyName ??= $"Config #{index++}";
+        }
     }
 }
