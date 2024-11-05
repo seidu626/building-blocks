@@ -1,6 +1,8 @@
 ﻿#nullable enable
 
 
+using BuildingBlocks.Common;
+
 namespace BuildingBlocks.Exceptions;
 
 public sealed class Error : ValueObject

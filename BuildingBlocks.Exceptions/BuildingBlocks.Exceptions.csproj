@@ -15,4 +15,8 @@
       <PackageReference Include="Westwind.Utilities" Version="5.0.9" />
     </ItemGroup>
 
+    <ItemGroup>
+      <ProjectReference Include="..\BuildingBlocks.Common\BuildingBlocks.Common.csproj" />
+    </ItemGroup>
+
 </Project>

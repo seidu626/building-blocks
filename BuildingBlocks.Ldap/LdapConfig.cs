@@ -38,6 +38,8 @@ public class LdapConfig
     /// </summary>
     public int Timeout { get; set; } = 120000;
 
+    public int MaxPoolSize { get; set; } = 10;
+
     public string PreFilterRegex
     {
         get => this._preFilterRegexString;

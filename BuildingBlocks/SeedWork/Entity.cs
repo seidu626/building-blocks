@@ -15,6 +15,8 @@ namespace BuildingBlocks.SeedWork
             set => _id = value;
         }
 
+        [System.Text.Json.Serialization.JsonIgnore]
+        [Newtonsoft.Json.JsonIgnore]
         public IReadOnlyCollection<INotification> DomainEvents => _domainEvents?.AsReadOnly();
 
         public virtual bool IsTransientRecord() => Id == 0;

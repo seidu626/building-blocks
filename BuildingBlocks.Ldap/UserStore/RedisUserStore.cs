@@ -26,12 +26,10 @@ namespace BuildingBlocks.Ldap.UserStore
         private readonly JsonSerializerSettings _jsonSettings;
         private readonly AsyncRetryPolicy _retryPolicy;
         private readonly AsyncFallbackPolicy _fallbackPolicy;
-
         private readonly AsyncCircuitBreakerPolicy _circuitBreakerPolicy;
 
         // Fallback in-memory storage in case Redis fails
         private readonly ConcurrentDictionary<string, TUser> _fallbackCache = new ConcurrentDictionary<string, TUser>();
-
 
         public RedisUserStore(ILdapService<TUser> ldapService, ExtensionConfig config,
             ILogger<RedisUserStore<TUser>> logger)
@@ -135,17 +133,17 @@ namespace BuildingBlocks.Ldap.UserStore
                 var redisKey = $"IdentityServer/OpenId/provider/{provider}/userId/{userId}";
                 var redisValue = await database.StringGetAsync(redisKey);
 
-                if (redisValue.HasValue)
+                if (!redisValue.HasValue)
+                    return Result.Failure<TUser, Error>(new Error("USER_NOT_FOUND",
+                        "User not found in external provider"));
+                var key = redisValue.ToString();
+                var userValue = await database.StringGetAsync(key);
+                if (userValue.HasValue)
                 {
-                    var key = redisValue.ToString();
-                    var userValue = await database.StringGetAsync(key);
-                    if (userValue.HasValue)
-                    {
-                        return userValue.ToString().TryDeserializeObject<TUser>(_logger, _jsonSettings);
-                    }
-
-                    _logger.LogWarning($"The key {key} should not exist or data is corrupted!");
+                    return userValue.ToString().TryDeserializeObject<TUser>(_logger, _jsonSettings);
                 }
+
+                _logger.LogWarning($"The key {key} should not exist or data is corrupted!");
 
                 return Result.Failure<TUser, Error>(new Error("USER_NOT_FOUND", "User not found in external provider"));
             });
@@ -171,7 +169,6 @@ namespace BuildingBlocks.Ldap.UserStore
 
             return user;
         }
-
 
         [Time] [Timeout(1200)]
         private async Task<Result<TUser, Error>> FindAndCacheAsync(string keyType, string key,
@@ -206,8 +203,7 @@ namespace BuildingBlocks.Ldap.UserStore
 
             return fetchResult;
         }
-
-
+        
         [Time] [Timeout(1200)]
         private async Task<Result<TUser, Error>> ExecuteAndCacheAsync(Func<Task<Result<TUser, Error>>> action,
             string keyType, string key)
