@@ -62,7 +62,7 @@ public static class FileAndDirectoryInfoExtensions
     /// renamed <see cref="FileInfo"/>.
     /// </summary>
     [DebuggerStepThrough]
-    public static FileInfo Rename(this FileInfo fileInfo, string newName)
+    public static FileInfo Rename(this FileInfo fileInfo, string? newName)
     {
         Ensure.NotNull(fileInfo, nameof(fileInfo));
         Ensure.Exists(fileInfo);

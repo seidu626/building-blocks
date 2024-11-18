@@ -5,12 +5,12 @@ namespace BuildingBlocks.Ldap
 {
     public interface IAppUser
     {
-        string SubjectId { get; set; }
-        string Username { get; set; }
+        string? SubjectId { get; set; }
+        string? Username { get; set; }
         string Fullname { get; set; }
-        string Email { get; set; }
+        string? Email { get; set; }
         string Mobile { get; set; }
-        string ProviderSubjectId { get; set; }
+        string? ProviderSubjectId { get; set; }
         string? ProviderName { get; set; }
         bool IsActive { get; }
         string DisplayName { get; set; }

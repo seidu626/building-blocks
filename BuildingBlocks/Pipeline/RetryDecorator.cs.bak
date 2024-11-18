@@ -1,0 +1,31 @@
+﻿using Mediator;
+using Polly;
+
+namespace BuildingBlocks.Pipeline
+{
+    public class RetryDecorator<TNotification> : INotificationHandler<TNotification>
+        where TNotification : INotification
+    {
+        private readonly INotificationHandler<TNotification> _inner;
+        private readonly IAsyncPolicy _retryPolicy;
+
+        public RetryDecorator(INotificationHandler<TNotification> inner)
+        {
+            _inner = inner ?? throw new ArgumentNullException(nameof(inner));
+
+            // Define a retry policy with 3 attempts and incremental backoff
+            _retryPolicy = Policy
+                .Handle<ArgumentOutOfRangeException>()
+                .WaitAndRetryAsync(
+                    retryCount: 3,
+                    sleepDurationProvider: attempt => TimeSpan.FromSeconds(attempt)
+                );
+        }
+
+        public async ValueTask Handle(TNotification notification, CancellationToken cancellationToken)
+        {
+            // Execute the inner handler with retry policy
+            await _retryPolicy.ExecuteAsync(async () => { await _inner.Handle(notification, cancellationToken); });
+        }
+    }
+}

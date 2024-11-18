@@ -6,7 +6,7 @@ namespace BuildingBlocks.OAuth;
 public record IdentityUser
 {
     [JsonPropertyName("sub")]
-    public string Sub { get; init; }
+    public string? Sub { get; init; }
 
     [JsonPropertyName("name")]
     public string Name { get; init; }
@@ -21,7 +21,7 @@ public record IdentityUser
     public string EmployeeCategory { get; init; }
 
     [JsonPropertyName("preferred_username")]
-    public string PreferredUsername { get; init; }
+    public string? PreferredUsername { get; init; }
 
     [JsonPropertyName("family_name")]
     public string FamilyName { get; init; }

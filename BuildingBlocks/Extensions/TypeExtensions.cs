@@ -61,7 +61,7 @@ public static class TypeExtensions
     /// <remarks>This method can be used to return both a <c>public</c> or <c>non-public</c> property.</remarks>
     /// </summary>
     [DebuggerStepThrough]
-    public static bool TryGetInstanceProperty(this Type type, string propertyName, out PropertyInfo property, bool inherit = true)
+    public static bool TryGetInstanceProperty(this Type type, string? propertyName, out PropertyInfo property, bool inherit = true)
     {
         Ensure.NotNull(type, nameof(type));
         Ensure.NotNullOrEmptyOrWhiteSpace(propertyName);

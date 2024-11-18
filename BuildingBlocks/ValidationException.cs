@@ -1,19 +1,22 @@
-﻿// Decompiled with JetBrains decompiler
-// Type: BuildingBlocks.ValidationException
-// Assembly: BuildingBlocks, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null
-// MVID: 8587CF18-BE3D-4726-89FF-4AF7AAC01FA5
-// Assembly location: C:\Users\420919\Repositories\STS\Api\BuildingBlocks.dll
+﻿#nullable disable
+using FluentValidation.Results;
 
-#nullable disable
 namespace BuildingBlocks;
 
 public sealed class ValidationException : Exception
 {
-  public ValidationException(ValidationError validationError)
-    : base("Validation error")
-  {
-    this.ValidationError = validationError;
-  }
+    public ValidationException(ValidationError validationError)
+        : base("Validation error")
+    {
+        this.ValidationError = validationError;
+    }
 
-  public ValidationError ValidationError { get; }
+    public ValidationException(string message, IEnumerable<ValidationFailure> validationFailures)
+        : base(message)
+    {
+        ValidationFailures = validationFailures.ToList();
+    }
+
+    public ValidationError ValidationError { get; }
+    public List<ValidationFailure> ValidationFailures { get; }
 }

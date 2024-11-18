@@ -76,13 +76,22 @@ public class SqlQueryHelper
                     var obj = new T();
                     foreach (var property in typeof(T).GetProperties())
                     {
-                        string columnName =
-                            columnToPropertyMap?.TryGetValue(property.Name, out var mappedColumn) ?? false
-                                ? mappedColumn
-                                : property.Name;
+                        string columnName = columnToPropertyMap?.TryGetValue(property.Name, out var mappedColumn) ?? false
+                            ? mappedColumn
+                            : property.Name;
+
                         if (columnNames.Contains(columnName) && reader[columnName] != DBNull.Value)
                         {
-                            property.SetValue(obj, Convert.ChangeType(reader[columnName], property.PropertyType));
+                            var value = reader[columnName];
+                            if (property.PropertyType.IsGenericType &&
+                                property.PropertyType.GetGenericTypeDefinition() == typeof(Nullable<>))
+                            {
+                                property.SetValue(obj, Convert.ChangeType(value, Nullable.GetUnderlyingType(property.PropertyType)));
+                            }
+                            else
+                            {
+                                property.SetValue(obj, Convert.ChangeType(value, property.PropertyType));
+                            }
                         }
                     }
 

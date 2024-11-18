@@ -7,22 +7,22 @@ namespace BuildingBlocks.Ldap.UserModel;
 
 public class ActiveDirectoryAppUser : IAppUser
 {
-    private string _subjectId;
+    private string? _subjectId;
 
-    public string SubjectId
+    public string? SubjectId
     {
         get => _subjectId ?? Username;
         set => _subjectId = value;
     }
-    public string ProviderSubjectId { get; set; }
+    public string? ProviderSubjectId { get; set; }
     public string? ProviderName { get; set; }
     public string DisplayName { get; set; }
     public string EmployeeNumber { get; set; }
-    public string Username { get; set; }
+    public string? Username { get; set; }
     public string Fullname { get; set; }
     public string Title { get; set; }
     public string Description { get; set; }
-    public string Email { get; set; }
+    public string? Email { get; set; }
     public string Department { get; set; }
     public string Division { get; set; }
     public string Mobile { get; set; }

@@ -132,7 +132,7 @@ public static class StringExtensions
     /// <see langword="true"/> if the format parameter is null or an empty string (""); otherwise, <see langword="false"/>.
     /// </returns>
     [DebuggerStepThrough]
-    public static bool IsNullOrEmpty(this string value) => string.IsNullOrEmpty(value);
+    public static bool IsNullOrEmpty(this string? value) => string.IsNullOrEmpty(value);
 
     /// <summary>
     /// A nice way of calling the inverse of <see cref="string.IsNullOrEmpty(string)"/>
@@ -162,7 +162,7 @@ public static class StringExtensions
     /// <see langword="true"/> if the format parameter is not null or an empty string (""); otherwise, <see langword="false"/>.
     /// </returns>
     [DebuggerStepThrough]
-    public static bool IsNotNullOrEmptyOrWhiteSpace(this string value)
+    public static bool IsNotNullOrEmptyOrWhiteSpace(this string? value)
         => !value.IsNullOrEmptyOrWhiteSpace();
 
     /// <summary>
@@ -492,7 +492,7 @@ public static class StringExtensions
     /// <example> "ThisIsPascalCase".SeparatePascalCase(); // returns "This Is Pascal Case" </example>
     /// <param name="value">The format to split</param>
     /// <returns>The original string separated on each uppercase character.</returns>
-    public static string SeparatePascalCase(this string value)
+    public static string SeparatePascalCase(this string? value)
     {
         Ensure.NotNullOrEmptyOrWhiteSpace(value);
         return Regex.Replace(value, "([A-Z])", " $1").Trim();
@@ -952,7 +952,7 @@ public static class StringExtensions
     /// Ensures the given <paramref name="fileName"/> can be used as a file name.
     /// </summary>
     [DebuggerStepThrough]
-    public static bool IsValidFileName(this string fileName) =>
+    public static bool IsValidFileName(this string? fileName) =>
         fileName.IsNotNullOrEmptyOrWhiteSpace() && fileName.IndexOfAny(InvalidFileNameCharacters) == -1;
 
     /// <summary>
@@ -1100,7 +1100,7 @@ public static class StringExtensions
     }
 
 
-    public static string RemoveWhiteSpaces(this string str)
+    public static string? RemoveWhiteSpaces(this string? str)
     {
         if (str.IsNullOrEmpty()) return "";
         return Regex.Replace(str, @"\s+", "");
