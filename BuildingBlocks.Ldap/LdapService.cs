@@ -164,42 +164,42 @@ namespace BuildingBlocks.Ldap
         #endregion
 
 
-        public async Task<Result<TUser, Error>> Login(string username, string password)
+        public async Task<Result<TUser, Error>> Login(string? username, string password)
         {
             return await AuthenticateUser(username, password, null);
         }
 
-        public async Task<Result<TUser, Error>> Login(string username, string password, string? domain)
+        public async Task<Result<TUser, Error>> Login(string? username, string password, string? domain)
         {
             return await AuthenticateUser(username, password, domain);
         }
 
-        public Task<Result<TUser, Error>> FindUser(string username)
+        public Task<Result<TUser, Error>> FindUser(string? username)
         {
             return Task.FromResult(FindUserByUsername(username, null));
         }
 
-        public Task<Result<TUser, Error>> FindUser(string username, string domain)
+        public Task<Result<TUser, Error>> FindUser(string? username, string domain)
         {
             return Task.FromResult(FindUserByUsername(username, domain));
         }
 
-        public Task<Result<TUser, Error>> FindUserByEmail(string email)
+        public Task<Result<TUser, Error>> FindUserByEmail(string? email)
         {
             return FindUserByEmail(email, null);
         }
 
-        public Task<Result<TUser, Error>> FindUserByPhone(string phone)
+        public Task<Result<TUser, Error>> FindUserByPhone(string? phone)
         {
             return FindUserByPhone(phone, null);
         }
 
-        public Task<Result<TUser, Error>> FindUserByEmail(string email, string? domain)
+        public Task<Result<TUser, Error>> FindUserByEmail(string? email, string? domain)
         {
             return Task.FromResult(GetUserByAttribute("mail", email, domain));
         }
 
-        public Task<Result<TUser, Error>> FindUserByPhone(string phone, string? domain)
+        public Task<Result<TUser, Error>> FindUserByPhone(string? phone, string? domain)
         {
             var formattedPhones = GetFormattedPhoneNumbers(phone);
             foreach (var formattedPhone in formattedPhones)
@@ -215,12 +215,12 @@ namespace BuildingBlocks.Ldap
                 new Error("404", "User not found with the given phone number."));
         }
 
-        private Result<TUser, Error> FindUserByUsername(string username, string? domain)
+        private Result<TUser, Error> FindUserByUsername(string? username, string? domain)
         {
             return GetUserByAttribute("sAMAccountName", username, domain);
         }
 
-        private async Task<Result<TUser, Error>> AuthenticateUser(string username, string password, string? domain)
+        private async Task<Result<TUser, Error>> AuthenticateUser(string? username, string password, string? domain)
         {
             return await _circuitBreakerPolicy.ExecuteAsync(async () =>
             {
@@ -258,9 +258,9 @@ namespace BuildingBlocks.Ldap
 
         #region Utils
 
-        private IEnumerable<string> GetFormattedPhoneNumbers(string phone)
+        private IEnumerable<string?> GetFormattedPhoneNumbers(string? phone)
         {
-            var formattedPhones = new List<string>();
+            var formattedPhones = new List<string?>();
 
             // Add the original phone number
             formattedPhones.Add(phone);
@@ -282,7 +282,7 @@ namespace BuildingBlocks.Ldap
 
         [Time]
         [Timeout(1200)]
-        private Result<TUser, Error> GetUserByAttribute(string attributeName, string attributeValue, string? domain)
+        private Result<TUser, Error> GetUserByAttribute(string attributeName, string? attributeValue, string? domain)
         {
             var ldapConfig = _config.First();
             var connection = GetConnectionFromPool(ldapConfig);
@@ -330,7 +330,7 @@ namespace BuildingBlocks.Ldap
         /// <returns></returns>
         [Time]
         [Timeout(1200)]
-        public Task<Result<List<string>, Error>> GetUserAttributes(string attributeName, string attributeValue,
+        public Task<Result<List<string>, Error>> GetUserAttributes(string attributeName, string? attributeValue,
             string domain)
         {
             var ldapConfig = _config.First();
@@ -394,7 +394,7 @@ namespace BuildingBlocks.Ldap
             return newUser;
         }
 
-        private Task<Result<TUser, Error>> PerformLdapAuthentication(string username, string password,
+        private Task<Result<TUser, Error>> PerformLdapAuthentication(string? username, string password,
             string? domain)
         {
             var ldapConfig = _config.First(); // Simplified: Select the first LDAP config
@@ -439,7 +439,7 @@ namespace BuildingBlocks.Ldap
         [Time]
         [Timeout(1200)]
         private Result<(ILdapSearchResults Results, LdapConnection LdapConnection), Error> PerformLdapSearch(
-            string attributeName, string attributeValue, LdapConfig ldapConfig,
+            string attributeName, string? attributeValue, LdapConfig ldapConfig,
             LdapConnection connection, bool allAttributes = false)
         {
             try

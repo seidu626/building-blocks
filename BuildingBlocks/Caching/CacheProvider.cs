@@ -11,7 +11,7 @@ namespace BuildingBlocks.Caching
         private readonly IDistributedCache _cache;
         private readonly ILogger<CacheProvider> _logger;
         private readonly AsyncRetryPolicy _retryPolicy;
-        private string _defaultCachedKey = "__DEFAULT_CACHE__";
+        private string? _defaultCachedKey = "__DEFAULT_CACHE__";
 
         public CacheProvider(IDistributedCache cache, ILogger<CacheProvider> logger)
         {
@@ -27,13 +27,13 @@ namespace BuildingBlocks.Caching
                             attempt, context["CacheKey"], exception.Message));
         }
 
-        public string SetDefaultCachedKey(string key)
+        public string? SetDefaultCachedKey(string? key)
         {
             _defaultCachedKey = key;
             return key;
         }
 
-        public async Task SetCachedKeysAsync(string data, string key, DistributedCacheEntryOptions options,
+        public async Task SetCachedKeysAsync(string data, string? key, DistributedCacheEntryOptions options,
             CancellationToken cancellationToken = default)
         {
             await _retryPolicy.ExecuteAsync(async (ctx, ct) =>
@@ -49,7 +49,7 @@ namespace BuildingBlocks.Caching
             }, new Context { ["CacheKey"] = key }, cancellationToken);
         }
 
-        public async Task<T> GetAsync<T>(string key, DistributedCacheEntryOptions options, SemaphoreSlim semaphore,
+        public async Task<T> GetAsync<T>(string? key, DistributedCacheEntryOptions options, SemaphoreSlim semaphore,
             Func<Task<T>> asyncFunc, CancellationToken cancellationToken) where T : class
         {
             var record = await GetAsync<T>(key, cancellationToken);
@@ -76,7 +76,7 @@ namespace BuildingBlocks.Caching
             return record;
         }
 
-        public async Task<T> GetAsync<T>(string key, DistributedCacheEntryOptions options, SemaphoreSlim semaphore,
+        public async Task<T> GetAsync<T>(string? key, DistributedCacheEntryOptions options, SemaphoreSlim semaphore,
             Func<T> func, CancellationToken cancellationToken) where T : class
         {
             var record = await GetAsync<T>(key, cancellationToken);
@@ -102,7 +102,7 @@ namespace BuildingBlocks.Caching
             return record;
         }
 
-        public async Task<T> GetAsync<T>(string key, CancellationToken cancellationToken) where T : class
+        public async Task<T> GetAsync<T>(string? key, CancellationToken cancellationToken) where T : class
         {
             return await _retryPolicy.ExecuteAsync(async (ctx, ct) =>
             {
@@ -111,7 +111,7 @@ namespace BuildingBlocks.Caching
             }, new Context { ["CacheKey"] = key }, cancellationToken);
         }
 
-        public async Task SetAsync<T>(string key, T value, DistributedCacheEntryOptions options,
+        public async Task SetAsync<T>(string? key, T value, DistributedCacheEntryOptions options,
             CancellationToken cancellationToken) where T : class
         {
             var serializedValue = JsonSerializer.Serialize(value);
@@ -126,14 +126,14 @@ namespace BuildingBlocks.Caching
             }, new Context { ["CacheKey"] = key }, cancellationToken);
         }
 
-        public async Task ClearAsync(string key)
+        public async Task ClearAsync(string? key)
         {
             await _cache.RemoveAsync(key);
         }
 
-        public async Task<List<string>> FlushAsync(CancellationToken cancellationToken)
+        public async Task<List<string?>> FlushAsync(CancellationToken cancellationToken)
         {
-            var records = await GetAsync<List<string>>(_defaultCachedKey, cancellationToken);
+            List<string?>? records = await GetAsync<List<string>>(_defaultCachedKey, cancellationToken);
             if (records == null)
                 return null;
 

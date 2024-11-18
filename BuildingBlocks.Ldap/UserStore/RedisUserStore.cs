@@ -86,41 +86,41 @@ namespace BuildingBlocks.Ldap.UserStore
             return ConnectionMultiplexer.Connect(ConfigurationOptions.Parse(connectionString));
         }
 
-        public async Task<Result<TUser, Error>> ValidateCredentialsAsync(string username, string password)
+        public async Task<Result<TUser, Error>> ValidateCredentialsAsync(string? username, string password)
         {
             return await ExecuteAndCacheAsync(() => _ldapService.Login(username, password, null), "username", username);
         }
 
-        public async Task<Result<TUser, Error>> ValidateCredentialsAsync(string username, string password,
+        public async Task<Result<TUser, Error>> ValidateCredentialsAsync(string? username, string password,
             string? domain)
         {
             return await ExecuteAndCacheAsync(() => _ldapService.Login(username, password, domain), "username",
                 username);
         }
 
-        public async Task<Result<TUser, Error>> FindBySubjectIdAsync(string subjectId)
+        public async Task<Result<TUser, Error>> FindBySubjectIdAsync(string? subjectId)
         {
             return await FindAndCacheAsync(nameof(subjectId), subjectId,
                 () => _ldapService.FindUser(subjectId.Replace("ldap_", "")));
         }
 
-        public async Task<Result<TUser, Error>> FindByUsernameAsync(string username)
+        public async Task<Result<TUser, Error>> FindByUsernameAsync(string? username)
         {
             return await FindAndCacheAsync(nameof(username), username, () => _ldapService.FindUser(username));
         }
 
-        public async Task<Result<TUser, Error>> FindByEmailAsync(string email)
+        public async Task<Result<TUser, Error>> FindByEmailAsync(string? email)
         {
             return await FindAndCacheAsync(nameof(email), email, () => _ldapService.FindUserByEmail(email));
         }
 
-        public async Task<Result<TUser, Error>> FindByPhoneAsync(string phone)
+        public async Task<Result<TUser, Error>> FindByPhoneAsync(string? phone)
         {
             return await FindAndCacheAsync(nameof(phone), phone, () => _ldapService.FindUserByPhone(phone));
         }
 
         public async Task<Result<List<string>, Error>> GetUserAttributesAsync(string attributeName,
-            string attributeValue, string domain)
+            string? attributeValue, string domain)
         {
             return await _ldapService.GetUserAttributes(attributeName, attributeValue, domain);
         }
@@ -149,7 +149,7 @@ namespace BuildingBlocks.Ldap.UserStore
             });
         }
 
-        public async Task<Result<TUser, Error>> AutoProvisionUserAsync(string? provider, string userId,
+        public async Task<Result<TUser, Error>> AutoProvisionUserAsync(string? provider, string? userId,
             List<Claim> claims)
         {
             var filteredClaims = FilterClaims(claims);
@@ -171,7 +171,7 @@ namespace BuildingBlocks.Ldap.UserStore
         }
 
         [Time] [Timeout(1200)]
-        private async Task<Result<TUser, Error>> FindAndCacheAsync(string keyType, string key,
+        private async Task<Result<TUser, Error>> FindAndCacheAsync(string keyType, string? key,
             Func<Task<Result<TUser, Error>>> fetchUser)
         {
             var redisKey = GetRedisKey(keyType, key);
@@ -206,7 +206,7 @@ namespace BuildingBlocks.Ldap.UserStore
         
         [Time] [Timeout(1200)]
         private async Task<Result<TUser, Error>> ExecuteAndCacheAsync(Func<Task<Result<TUser, Error>>> action,
-            string keyType, string key)
+            string keyType, string? key)
         {
             try
             {
@@ -239,7 +239,7 @@ namespace BuildingBlocks.Ldap.UserStore
             return default;
         }
 
-        private static string GetRedisKey(string type, string key)
+        private static string GetRedisKey(string type, string? key)
         {
             return $"IdentityServer/OpenId/{type}/{key}";
         }

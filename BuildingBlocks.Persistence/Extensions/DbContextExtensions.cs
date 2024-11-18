@@ -17,11 +17,14 @@ namespace BuildingBlocks.Persistence.Extensions
             if (string.IsNullOrEmpty(tableName) || string.IsNullOrEmpty(columnName))
                 return false;
 
-            var sql = @"SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name = @tableName AND column_name = @columnName";
-            return context.Database.ExecuteSqlRaw(sql, new SqlParameter("@tableName", tableName), new SqlParameter("@columnName", columnName)) > 0;
+            var sql =
+                @"SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name = @tableName AND column_name = @columnName";
+            return context.Database.ExecuteSqlRaw(sql, new SqlParameter("@tableName", tableName),
+                new SqlParameter("@columnName", columnName)) > 0;
         }
 
-        public static void ColumnEnsure(this DbContext context, string tableName, string columnName, string columnDataType)
+        public static void ColumnEnsure(this DbContext context, string tableName, string columnName,
+            string columnDataType)
         {
             if (!context.ColumnExists(tableName, columnName))
             {

@@ -140,7 +140,7 @@ public static class Ensure
     ///     Thrown when <paramref name="value"/> is null or empty or whitespace.
     /// </exception>
     [DebuggerStepThrough]
-    public static string NotNullOrEmptyOrWhiteSpace(string value, string message = "String must not be null, empty or whitespace.")
+    public static string? NotNullOrEmptyOrWhiteSpace(string? value, string message = "String must not be null, empty or whitespace.")
     {
         That<ArgumentException>(value.IsNotNullOrEmptyOrWhiteSpace(), message);
         return value;

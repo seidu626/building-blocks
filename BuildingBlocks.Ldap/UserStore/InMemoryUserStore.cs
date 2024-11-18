@@ -13,8 +13,8 @@ namespace BuildingBlocks.Ldap.UserStore
         private readonly ILdapService<TUser> _authenticationService;
 
         // In-memory data store using thread-safe concurrent dictionary
-        private readonly ConcurrentDictionary<string?, ConcurrentDictionary<string, TUser>> _users =
-            new ConcurrentDictionary<string?, ConcurrentDictionary<string, TUser>>();
+        private readonly ConcurrentDictionary<string?, ConcurrentDictionary<string?, TUser>> _users =
+            new ConcurrentDictionary<string?, ConcurrentDictionary<string?, TUser>>();
 
         public InMemoryUserStore(ILdapService<TUser> authenticationService)
         {
@@ -22,43 +22,43 @@ namespace BuildingBlocks.Ldap.UserStore
                 authenticationService ?? throw new ArgumentNullException(nameof(authenticationService));
         }
 
-        public async Task<Result<TUser, Error>> ValidateCredentialsAsync(string username, string password)
+        public async Task<Result<TUser, Error>> ValidateCredentialsAsync(string? username, string password)
         {
             return await ValidateCredentialsAsync(username, password, null);
         }
 
-        public async Task<Result<TUser, Error>> ValidateCredentialsAsync(string username, string password,
+        public async Task<Result<TUser, Error>> ValidateCredentialsAsync(string? username, string password,
             string? domain)
         {
             return await PerformAuthenticationAsync(() => _authenticationService.Login(username, password, domain));
         }
 
-        public async Task<Result<TUser, Error>> FindBySubjectIdAsync(string subjectId)
+        public async Task<Result<TUser, Error>> FindBySubjectIdAsync(string? subjectId)
         {
             return await FindAndCacheAsync(u => u.SubjectId == subjectId,
                 () => _authenticationService.FindUser(subjectId.Replace("ldap_", "")));
         }
 
-        public async Task<Result<TUser, Error>> FindByUsernameAsync(string username)
+        public async Task<Result<TUser, Error>> FindByUsernameAsync(string? username)
         {
             return await FindAndCacheAsync(u => u.Username == username,
                 () => _authenticationService.FindUser(username.Replace("ldap_", "")));
         }
 
-        public async Task<Result<TUser, Error>> FindByEmailAsync(string email)
+        public async Task<Result<TUser, Error>> FindByEmailAsync(string? email)
         {
             return await FindAndCacheAsync(u => u.Email == email,
                 () => _authenticationService.FindUserByEmail(email.Replace("ldap_", "")));
         }
 
-        public async Task<Result<TUser, Error>> FindByPhoneAsync(string phone)
+        public async Task<Result<TUser, Error>> FindByPhoneAsync(string? phone)
         {
             return await FindAndCacheAsync(u => u.Mobile == phone,
                 () => _authenticationService.FindUserByPhone(phone.Replace("ldap_", "")));
         }
 
         public async Task<Result<List<string>, Error>> GetUserAttributesAsync(string attributeName,
-            string attributeValue, string domain)
+            string? attributeValue, string domain)
         {
             return await _authenticationService.GetUserAttributes(attributeName, attributeValue, domain);
         }
@@ -73,7 +73,7 @@ namespace BuildingBlocks.Ldap.UserStore
             return Result.Failure<TUser, Error>(new Error("404", "User not found in external provider"));
         }
 
-        public async Task<Result<TUser, Error>> AutoProvisionUserAsync(string? provider, string userId,
+        public async Task<Result<TUser, Error>> AutoProvisionUserAsync(string? provider, string? userId,
             List<Claim> claims)
         {
             var filteredClaims = FilterClaims(claims);
@@ -90,7 +90,7 @@ namespace BuildingBlocks.Ldap.UserStore
             };
 
             _users.AddOrUpdate(provider,
-                new ConcurrentDictionary<string, TUser> { [userId] = user },
+                new ConcurrentDictionary<string?, TUser> { [userId] = user },
                 (key, existingUsers) =>
                 {
                     existingUsers[userId] = user;
@@ -132,7 +132,7 @@ namespace BuildingBlocks.Ldap.UserStore
             var fetchedUser = fetchResult.Value;
 
             _users.AddOrUpdate(fetchedUser.ProviderName,
-                new ConcurrentDictionary<string, TUser> { [fetchedUser.ProviderSubjectId] = fetchedUser },
+                new ConcurrentDictionary<string?, TUser> { [fetchedUser.ProviderSubjectId] = fetchedUser },
                 (key, existingUsers) =>
                 {
                     existingUsers[fetchedUser.ProviderSubjectId] = fetchedUser;

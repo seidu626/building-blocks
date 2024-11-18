@@ -1,17 +1,21 @@
-﻿#nullable disable
-using Mediator;
+﻿using Mediator;
 
-namespace BuildingBlocks.Pipeline;
-
-public sealed class MessageValidatorBehaviour<TMessage, TResponse> : 
-  IPipelineBehavior<TMessage, TResponse>
-  where TMessage : IValidate
+namespace BuildingBlocks.Pipeline
 {
-  public ValueTask<TResponse> Handle(TMessage message, MessageHandlerDelegate<TMessage, TResponse> next, CancellationToken cancellationToken)
-  {
-    ValidationError error;
-    if (!message.IsValid(out error))
-      throw new ValidationException(error);
-    return next(message, cancellationToken);
-  }
+    public sealed class MessageValidatorBehaviour<TMessage, TResponse> : IPipelineBehavior<TMessage, TResponse>
+        where TMessage : IValidate
+    {
+        public async ValueTask<TResponse> Handle(
+            TMessage message,
+            MessageHandlerDelegate<TMessage, TResponse> next,
+            CancellationToken cancellationToken)
+        {
+            if (!message.IsValid(out var error))
+            {
+                throw new ValidationException(error);
+            }
+
+            return await next(message, cancellationToken);
+        }
+    }
 }

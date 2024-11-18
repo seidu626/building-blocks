@@ -9,7 +9,7 @@ namespace BuildingBlocks.Caching
         /// </summary>
         /// <param name="key">The key to be set as default.</param>
         /// <returns>The default cached key.</returns>
-        string SetDefaultCachedKey(string key);
+        string? SetDefaultCachedKey(string? key);
 
         /// <summary>
         /// Sets cached keys asynchronously.
@@ -20,7 +20,7 @@ namespace BuildingBlocks.Caching
         /// <param name="cancellationToken">A cancellation token.</param>
         /// <returns>A task representing the asynchronous operation.</returns>
         Task SetCachedKeysAsync(string record,
-            string key,
+            string? key,
             DistributedCacheEntryOptions options,
             CancellationToken cancellationToken);
 
@@ -34,7 +34,7 @@ namespace BuildingBlocks.Caching
         /// <param name="func">The function to retrieve the item if it is not in the cache.</param>
         /// <param name="cancellationToken">A cancellation token.</param>
         /// <returns>The cached item or the result of the function if not cached.</returns>
-        Task<T> GetAsync<T>(string key,
+        Task<T> GetAsync<T>(string? key,
             DistributedCacheEntryOptions options,
             SemaphoreSlim semaphore,
             Func<Task<T>> func,
@@ -51,7 +51,7 @@ namespace BuildingBlocks.Caching
         /// <param name="func">The function to retrieve the item if it is not in the cache.</param>
         /// <param name="cancellationToken">A cancellation token.</param>
         /// <returns>The cached item or the result of the function if not cached.</returns>
-        Task<T> GetAsync<T>(string key,
+        Task<T> GetAsync<T>(string? key,
             DistributedCacheEntryOptions options,
             SemaphoreSlim semaphore,
             Func<T> func,
@@ -65,7 +65,7 @@ namespace BuildingBlocks.Caching
         /// <param name="key">The cache key.</param>
         /// <param name="cancellationToken">A cancellation token.</param>
         /// <returns>The cached item.</returns>
-        Task<T> GetAsync<T>(string key, CancellationToken cancellationToken) where T : class;
+        Task<T> GetAsync<T>(string? key, CancellationToken cancellationToken) where T : class;
 
         /// <summary>
         /// Sets a cached item asynchronously.
@@ -77,7 +77,7 @@ namespace BuildingBlocks.Caching
         /// <param name="cancellationToken">A cancellation token.</param>
         /// <returns>A task representing the asynchronous operation.</returns>
         Task SetAsync<T>(
-            string key,
+            string? key,
             T value,
             DistributedCacheEntryOptions options,
             CancellationToken cancellationToken)
@@ -88,13 +88,13 @@ namespace BuildingBlocks.Caching
         /// </summary>
         /// <param name="key">The cache key.</param>
         /// <returns>A task representing the asynchronous operation.</returns>
-        Task ClearAsync(string key);
+        Task ClearAsync(string? key);
 
         /// <summary>
         /// Flushes all cached items asynchronously.
         /// </summary>
         /// <param name="cancellationToken">A cancellation token.</param>
         /// <returns>A task representing the asynchronous operation, returning a list of flushed keys.</returns>
-        Task<List<string>> FlushAsync(CancellationToken cancellationToken);
+        Task<List<string?>> FlushAsync(CancellationToken cancellationToken);
     }
 }

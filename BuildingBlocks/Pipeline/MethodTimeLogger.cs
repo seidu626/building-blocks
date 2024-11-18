@@ -1,14 +1,31 @@
-﻿using System.Reflection;
-using ILogger = Serilog.ILogger;
+﻿using Microsoft.Extensions.Logging;
+using System.Reflection;
 
-namespace BuildingBlocks.Pipeline;
-
-public static class MethodTimeLogger
+namespace BuildingBlocks.Pipeline
 {
-  public static ILogger Logger;
+    public static class MethodTimeLogger
+    {
+        private static ILogger _logger;
 
-  public static void Log(MethodBase methodBase, TimeSpan timeSpan, string message)
-  {
-    MethodTimeLogger.Logger.Information("MethodTimer: {Class}.{Method} - {Message} in {Duration}", (object) ((MemberInfo) methodBase).DeclaringType.FullName, (object) ((MemberInfo) methodBase).Name, (object) message, (object) timeSpan);
-  }
-}   
+        public static void ConfigureLogger(ILogger logger)
+        {
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        }
+
+        public static void Log(MethodBase methodBase, TimeSpan timeSpan, string message)
+        {
+            if (_logger == null)
+            {
+                throw new InvalidOperationException(
+                    "Logger is not configured. Call ConfigureLogger to set the logger instance.");
+            }
+
+            _logger.LogTrace(
+                "{Class}.{Method} - {Message} in {Duration}",
+                methodBase.DeclaringType?.FullName,
+                methodBase.Name,
+                message,
+                timeSpan);
+        }
+    }
+}
