@@ -1,4 +1,5 @@
 ﻿using System.Security.Claims;
+using BuildingBlocks.Common;
 using BuildingBlocks.Exceptions;
 using BuildingBlocks.Ldap.UserStore;
 using CSharpFunctionalExtensions;
@@ -31,7 +32,7 @@ public class LdapUserResourceOwnerPasswordValidator<TUser> : IResourceOwnerPassw
         try
         {
             // Validate the user credentials asynchronously.
-            Result<TUser, Error> result = await _users.ValidateCredentialsAsync(context.UserName, context.Password);
+            Result<TUser, Error> result = await _users.ValidateCredentialsAsync(context.UserName, context.Password, IdentifierType.Username);
 
             if (result.IsSuccess && result.Value != null)
             {

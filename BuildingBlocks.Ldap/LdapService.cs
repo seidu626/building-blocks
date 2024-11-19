@@ -1,6 +1,7 @@
 ﻿using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net.Security;
+using BuildingBlocks.Common;
 using BuildingBlocks.Common.AOP;
 using BuildingBlocks.Exceptions;
 using CSharpFunctionalExtensions;
@@ -164,14 +165,15 @@ namespace BuildingBlocks.Ldap
         #endregion
 
 
-        public async Task<Result<TUser, Error>> Login(string? username, string password)
+        public async Task<Result<TUser, Error>> Login(string? username, string password, IdentifierType identifierType)
         {
-            return await AuthenticateUser(username, password, null);
+            return await AuthenticateUser(username, password, identifierType, null);
         }
 
-        public async Task<Result<TUser, Error>> Login(string? username, string password, string? domain)
+        public async Task<Result<TUser, Error>> Login(string? username, string password,
+            IdentifierType identifierType, string? domain)
         {
-            return await AuthenticateUser(username, password, domain);
+            return await AuthenticateUser(username, password, identifierType, domain);
         }
 
         public Task<Result<TUser, Error>> FindUser(string? username)
@@ -220,11 +222,11 @@ namespace BuildingBlocks.Ldap
             return GetUserByAttribute("sAMAccountName", username, domain);
         }
 
-        private async Task<Result<TUser, Error>> AuthenticateUser(string? username, string password, string? domain)
+        private async Task<Result<TUser, Error>> AuthenticateUser(string? username, string password, IdentifierType identifierType, string? domain)
         {
             return await _circuitBreakerPolicy.ExecuteAsync(async () =>
             {
-                return await _retryPolicy.ExecuteAsync(() => PerformLdapAuthentication(username, password, domain));
+                return await _retryPolicy.ExecuteAsync(() => PerformLdapAuthentication(username, password, identifierType, domain));
             });
         }
 
@@ -394,7 +396,7 @@ namespace BuildingBlocks.Ldap
             return newUser;
         }
 
-        private Task<Result<TUser, Error>> PerformLdapAuthentication(string? username, string password,
+        private Task<Result<TUser, Error>> PerformLdapAuthentication(string? username, string password, IdentifierType identifierType,
             string? domain)
         {
             var ldapConfig = _config.First(); // Simplified: Select the first LDAP config
@@ -402,9 +404,10 @@ namespace BuildingBlocks.Ldap
 
             try
             {
+                var attribute = identifierType.GetLdapAttribute();
                 connection.Bind(ldapConfig.BindDn, ldapConfig.BindCredentials);
                 // Perform authentication logic
-                var searchResult = PerformLdapSearch("sAMAccountName", username, ldapConfig, connection);
+                var searchResult = PerformLdapSearch(attribute, username, ldapConfig, connection);
                 if (searchResult.IsFailure) return Task.FromResult<Result<TUser, Error>>(searchResult.Error);
 
                 var userEntry = GetUserFromSearchResults(searchResult.Value);

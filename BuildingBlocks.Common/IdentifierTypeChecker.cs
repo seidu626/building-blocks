@@ -1,7 +1,6 @@
-namespace BuildingBlocks.Helpers;
-
-using System;
 using System.Text.RegularExpressions;
+
+namespace BuildingBlocks.Common;
 
 public enum IdentifierType
 {
@@ -10,8 +9,19 @@ public enum IdentifierType
     Username
 }
 
-public class IdentifierTypeChecker
+public static class IdentifierTypeChecker
 {
+    public static string GetLdapAttribute(this IdentifierType identifierType)
+    {
+        switch (identifierType)
+        {
+            case IdentifierType.Username: return "sAMAccountName";
+            case IdentifierType.Email: return "mail";
+            case IdentifierType.Phone: return "mobile";
+            default: return "sAMAccountName";
+        }
+    }
+
     public static IdentifierType GetIdentifierType(string input)
     {
         if (string.IsNullOrEmpty(input))

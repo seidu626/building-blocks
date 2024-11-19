@@ -1,5 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
-using System.Reflection;
+﻿using System.Reflection;
+using Serilog;
 
 namespace BuildingBlocks.Pipeline
 {
@@ -11,21 +11,21 @@ namespace BuildingBlocks.Pipeline
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
-
+                  
         public static void Log(MethodBase methodBase, TimeSpan timeSpan, string message)
         {
             if (_logger == null)
-            {
+            {       
                 throw new InvalidOperationException(
                     "Logger is not configured. Call ConfigureLogger to set the logger instance.");
             }
 
-            _logger.LogTrace(
+            _logger.Debug(
                 "{Class}.{Method} - {Message} in {Duration}",
                 methodBase.DeclaringType?.FullName,
                 methodBase.Name,
                 message,
                 timeSpan);
         }
-    }
+    }   
 }

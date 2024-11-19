@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("TimeoutWeaver.Fody")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+ed46fc87b6dce197dbd97ccc19d77d6a64c7e682")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+fcc0c941e0f18290a40573af7250518316b35254")]
 [assembly: System.Reflection.AssemblyProductAttribute("TimeoutWeaver.Fody")]
 [assembly: System.Reflection.AssemblyTitleAttribute("TimeoutWeaver.Fody")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

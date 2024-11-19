@@ -5,6 +5,7 @@ using BuildingBlocks.Ldap.Exceptions;
 using CSharpFunctionalExtensions;
 using IdentityModel;
 using System.Collections.Concurrent;
+using BuildingBlocks.Common;
 
 namespace BuildingBlocks.Ldap.UserStore
 {
@@ -22,15 +23,18 @@ namespace BuildingBlocks.Ldap.UserStore
                 authenticationService ?? throw new ArgumentNullException(nameof(authenticationService));
         }
 
-        public async Task<Result<TUser, Error>> ValidateCredentialsAsync(string? username, string password)
+        public async Task<Result<TUser, Error>> ValidateCredentialsAsync(string username, string password,
+            IdentifierType identifierType)
         {
-            return await ValidateCredentialsAsync(username, password, null);
+            return await ValidateCredentialsAsync(username, password, identifierType, null);
         }
 
-        public async Task<Result<TUser, Error>> ValidateCredentialsAsync(string? username, string password,
-            string? domain)
+        public async Task<Result<TUser, Error>> ValidateCredentialsAsync(string username, string password,
+            IdentifierType identifierType,
+            string domain)
         {
-            return await PerformAuthenticationAsync(() => _authenticationService.Login(username, password, domain));
+            return await PerformAuthenticationAsync(() =>
+                _authenticationService.Login(username, password, identifierType, domain));
         }
 
         public async Task<Result<TUser, Error>> FindBySubjectIdAsync(string? subjectId)

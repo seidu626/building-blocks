@@ -6,6 +6,7 @@
 
 #nullable disable
 using System.Security.Claims;
+using BuildingBlocks.Common;
 using BuildingBlocks.Exceptions;
 using CSharpFunctionalExtensions;
 
@@ -13,9 +14,10 @@ namespace BuildingBlocks.Ldap.UserStore;
 
 public interface ILdapUserStore<TUser> where TUser : IAppUser, new()
 {
-    Task<Result<TUser, Error>> ValidateCredentialsAsync(string username, string password);
+    Task<Result<TUser, Error>> ValidateCredentialsAsync(string username, string password, IdentifierType identifierType);
 
-    Task<Result<TUser, Error>> ValidateCredentialsAsync(string username, string password, string domain);
+    Task<Result<TUser, Error>> ValidateCredentialsAsync(string username, string password, IdentifierType identifierType,
+        string domain);
 
     Task<Result<TUser, Error>> FindBySubjectIdAsync(string subjectId);
 

@@ -1,13 +1,14 @@
-﻿using BuildingBlocks.Exceptions;
+﻿using BuildingBlocks.Common;
+using BuildingBlocks.Exceptions;
 using CSharpFunctionalExtensions;
 
 namespace BuildingBlocks.Ldap;
 
 public interface ILdapService<TUser> where TUser : IAppUser, new()
 {
-    Task<Result<TUser, Error>> Login(string? username, string password);
+    Task<Result<TUser, Error>> Login(string? username, string password, IdentifierType identifierType);
 
-    Task<Result<TUser, Error>> Login(string? username, string password, string? domain);
+    Task<Result<TUser, Error>> Login(string? username, string password, IdentifierType identifierType, string? domain);
 
     Task<Result<TUser, Error>> FindUser(string? username);
 

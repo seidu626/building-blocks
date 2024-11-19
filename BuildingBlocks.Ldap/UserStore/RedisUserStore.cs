@@ -1,6 +1,7 @@
 ﻿using System.Collections.Concurrent;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using BuildingBlocks.Common;
 using BuildingBlocks.Common.AOP;
 using BuildingBlocks.Exceptions;
 using BuildingBlocks.Ldap.Json;
@@ -86,15 +87,17 @@ namespace BuildingBlocks.Ldap.UserStore
             return ConnectionMultiplexer.Connect(ConfigurationOptions.Parse(connectionString));
         }
 
-        public async Task<Result<TUser, Error>> ValidateCredentialsAsync(string? username, string password)
+        public async Task<Result<TUser, Error>> ValidateCredentialsAsync(string username, string password,
+            IdentifierType identifierType)
         {
-            return await ExecuteAndCacheAsync(() => _ldapService.Login(username, password, null), "username", username);
+            return await ExecuteAndCacheAsync(() => _ldapService.Login(username, password, identifierType, null), "username", username);
         }
 
-        public async Task<Result<TUser, Error>> ValidateCredentialsAsync(string? username, string password,
-            string? domain)
+        public async Task<Result<TUser, Error>> ValidateCredentialsAsync(string username, string password,
+            IdentifierType identifierType,
+            string domain)
         {
-            return await ExecuteAndCacheAsync(() => _ldapService.Login(username, password, domain), "username",
+            return await ExecuteAndCacheAsync(() => _ldapService.Login(username, password, identifierType, domain), "username",
                 username);
         }
 
