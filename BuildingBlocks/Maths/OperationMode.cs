@@ -1,8 +1,5 @@
-using NetEscapades.EnumGenerators;
-
 namespace BuildingBlocks.Maths;
 
-[EnumExtensions]
 public enum OperationMode
 {
     Addition = 1,
