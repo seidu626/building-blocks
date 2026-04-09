@@ -3,9 +3,9 @@ using System.Security.Claims;
 using BuildingBlocks.Exceptions;
 using BuildingBlocks.Ldap.Exceptions;
 using CSharpFunctionalExtensions;
-using IdentityModel;
 using System.Collections.Concurrent;
 using BuildingBlocks.Common;
+using Duende.IdentityModel;
 
 namespace BuildingBlocks.Ldap.UserStore
 {
@@ -14,8 +14,9 @@ namespace BuildingBlocks.Ldap.UserStore
         private readonly ILdapService<TUser> _authenticationService;
 
         // In-memory data store using thread-safe concurrent dictionary
-        private readonly ConcurrentDictionary<string?, ConcurrentDictionary<string?, TUser>> _users =
-            new ConcurrentDictionary<string?, ConcurrentDictionary<string?, TUser>>();
+        // Using non-nullable string keys with empty string as fallback for null values
+        private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, TUser>> _users =
+            new ConcurrentDictionary<string, ConcurrentDictionary<string, TUser>>();
 
         public InMemoryUserStore(ILdapService<TUser> authenticationService)
         {
@@ -40,25 +41,25 @@ namespace BuildingBlocks.Ldap.UserStore
         public async Task<Result<TUser, Error>> FindBySubjectIdAsync(string? subjectId)
         {
             return await FindAndCacheAsync(u => u.SubjectId == subjectId,
-                () => _authenticationService.FindUser(subjectId.Replace("ldap_", "")));
+                () => _authenticationService.FindUser(subjectId?.Replace("ldap_", "")));
         }
 
         public async Task<Result<TUser, Error>> FindByUsernameAsync(string? username)
         {
             return await FindAndCacheAsync(u => u.Username == username,
-                () => _authenticationService.FindUser(username.Replace("ldap_", "")));
+                () => _authenticationService.FindUser(username?.Replace("ldap_", "")));
         }
 
         public async Task<Result<TUser, Error>> FindByEmailAsync(string? email)
         {
             return await FindAndCacheAsync(u => u.Email == email,
-                () => _authenticationService.FindUserByEmail(email.Replace("ldap_", "")));
+                () => _authenticationService.FindUserByEmail(email?.Replace("ldap_", "")));
         }
 
         public async Task<Result<TUser, Error>> FindByPhoneAsync(string? phone)
         {
             return await FindAndCacheAsync(u => u.Mobile == phone,
-                () => _authenticationService.FindUserByPhone(phone.Replace("ldap_", "")));
+                () => _authenticationService.FindUserByPhone(phone?.Replace("ldap_", "")));
         }
 
         public async Task<Result<List<string>, Error>> GetUserAttributesAsync(string attributeName,
@@ -69,15 +70,16 @@ namespace BuildingBlocks.Ldap.UserStore
 
         public async Task<Result<TUser, Error>> FindByExternalProviderAsync(string? provider, string userId)
         {
-            if (_users.TryGetValue(provider, out var providerUsers) && providerUsers.TryGetValue(userId, out var user))
+            var providerKey = provider ?? string.Empty;
+            if (_users.TryGetValue(providerKey, out var providerUsers) && providerUsers.TryGetValue(userId, out var user))
             {
-                return Result.Success<TUser, Error>(user);
+                return await Task.FromResult(Result.Success<TUser, Error>(user));
             }
 
-            return Result.Failure<TUser, Error>(new Error("404", "User not found in external provider"));
+            return await Task.FromResult(Result.Failure<TUser, Error>(new Error("404", "User not found in external provider")));
         }
 
-        public async Task<Result<TUser, Error>> AutoProvisionUserAsync(string? provider, string? userId,
+        public Task<Result<TUser, Error>> AutoProvisionUserAsync(string? provider, string? userId,
             List<Claim> claims)
         {
             var filteredClaims = FilterClaims(claims);
@@ -93,15 +95,18 @@ namespace BuildingBlocks.Ldap.UserStore
                 Claims = filteredClaims
             };
 
-            _users.AddOrUpdate(provider,
-                new ConcurrentDictionary<string?, TUser> { [userId] = user },
+            var providerKey = provider ?? string.Empty;
+            var userIdKey = userId ?? string.Empty;
+            
+            _users.AddOrUpdate(providerKey,
+                new ConcurrentDictionary<string, TUser> { [userIdKey] = user },
                 (key, existingUsers) =>
                 {
-                    existingUsers[userId] = user;
+                    existingUsers[userIdKey] = user;
                     return existingUsers;
                 });
 
-            return user;
+            return Task.FromResult<Result<TUser, Error>>(user);
         }
 
         private async Task<Result<TUser, Error>> PerformAuthenticationAsync(
@@ -135,11 +140,14 @@ namespace BuildingBlocks.Ldap.UserStore
 
             var fetchedUser = fetchResult.Value;
 
-            _users.AddOrUpdate(fetchedUser.ProviderName,
-                new ConcurrentDictionary<string?, TUser> { [fetchedUser.ProviderSubjectId] = fetchedUser },
+            var providerKey = fetchedUser.ProviderName ?? string.Empty;
+            var subjectIdKey = fetchedUser.ProviderSubjectId ?? string.Empty;
+            
+            _users.AddOrUpdate(providerKey,
+                new ConcurrentDictionary<string, TUser> { [subjectIdKey] = fetchedUser },
                 (key, existingUsers) =>
                 {
-                    existingUsers[fetchedUser.ProviderSubjectId] = fetchedUser;
+                    existingUsers[subjectIdKey] = fetchedUser;
                     return existingUsers;
                 });
 

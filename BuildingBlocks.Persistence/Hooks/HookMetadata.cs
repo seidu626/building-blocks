@@ -21,15 +21,15 @@ namespace BuildingBlocks.Persistence.Hooks
 
     public bool Important { get; set; }
 
-    public static HookMetadata Create<THook, TContext>(Type hookedType, bool important = false)
-      where THook : IDbSaveHook<TContext>
+    public static HookMetadata Create<THook, TContext, TId>(Type hookedType, bool important = false)
+      where THook : IDbSaveHook<TContext, TId>
       where TContext : DbContext
     {
-      Guard.AgainstNull((object) hookedType, nameof (hookedType));
+      Guard.AgainstNull(hookedType, nameof(hookedType));
       return new HookMetadata()
       {
-        ImplType = typeof (THook),
-        DbContextType = typeof (TContext),
+        ImplType = typeof(THook),
+        DbContextType = typeof(TContext),
         HookedType = hookedType,
         Important = important
       };

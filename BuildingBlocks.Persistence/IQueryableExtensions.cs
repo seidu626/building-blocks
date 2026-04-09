@@ -16,21 +16,21 @@ namespace BuildingBlocks.Persistence
 {
   public static class IQueryableExtensions
   {
-    public static IQueryable<T> Expand<T>(this IQueryable<T> query, string path) where T : Entity
+    public static IQueryable<T> Expand<T, TId>(this IQueryable<T> query, string path) where T : Entity<TId>
     {
-      Guard.AgainstNull((object) query, nameof (query));
-      Guard.AgainstNullOrEmpty(path, nameof (path));
+      Guard.AgainstNull(query, nameof(query));
+      Guard.AgainstNullOrEmpty(path, nameof(path));
       return EntityFrameworkQueryableExtensions.Include<T>(query, path);
     }
 
-    public static IQueryable<T> Expand<T, TProperty>(
+    public static IQueryable<T> Expand<T, TId, TProperty>(
       this IQueryable<T> query,
       Expression<Func<T, TProperty>> path)
-      where T : Entity
+      where T : Entity<TId>
     {
-      Guard.AgainstNull((object) query, nameof (query));
-      Guard.AgainstNull((object) path, nameof (path));
-      return (IQueryable<T>) EntityFrameworkQueryableExtensions.Include<T, TProperty>(query, path);
+      Guard.AgainstNull(query, nameof(query));
+      Guard.AgainstNull(path, nameof(path));
+      return EntityFrameworkQueryableExtensions.Include<T, TProperty>(query, path);
     }
   }
 }

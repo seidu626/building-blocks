@@ -4,13 +4,13 @@ using System;
 
 namespace BuildingBlocks.Persistence.Hooks
 {
-    public interface IHookedEntity<TDbContext>
+    public interface IHookedEntity<TDbContext, TId>
     {
         Type ContextType { get; }
 
         EntityEntry Entry { get; }
 
-        Entity Entity { get; }
+        Entity<TId> Entity { get; }
 
         Type EntityType { get; }
 

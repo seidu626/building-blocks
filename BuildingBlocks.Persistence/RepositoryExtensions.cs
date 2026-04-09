@@ -9,7 +9,7 @@ namespace BuildingBlocks.Persistence
 {
     public static class RepositoryExtensions
     {
-        public static IEnumerable<T> GetMany<T>(this IRepository<T> repository, IEnumerable<int> ids) where T : Entity
+        public static IEnumerable<T> GetMany<T, TId>(this IRepository<T, TId> repository, IEnumerable<TId> ids) where T : Entity<TId>
         {
             foreach (var idChunk in CollectionSlicer.Slice(ids, 128))
             {
@@ -21,8 +21,8 @@ namespace BuildingBlocks.Persistence
             }
         }
 
-        public static async Task<IEnumerable<T>> GetManyAsync<T>(this IRepository<T> repository, IEnumerable<int> ids)
-            where T : Entity
+        public static async Task<IEnumerable<T>> GetManyAsync<T, TId>(this IRepository<T, TId> repository, IEnumerable<TId> ids)
+            where T : Entity<TId>
         {
             var result = new List<T>();
             foreach (var idChunk in CollectionSlicer.Slice(ids, 128))
@@ -37,9 +37,9 @@ namespace BuildingBlocks.Persistence
             return result;
         }
 
-        public static void Delete<T>(this IRepository<T> repository, int id) where T : Entity
+        public static void Delete<T, TId>(this IRepository<T, TId> repository, TId id) where T : Entity<TId>
         {
-            Guard.AgainstZero(id, nameof(id));
+            Guard.AgainstNull(id, nameof(id));
             var entity = repository.Create();
             entity.Id = id;
             repository.ContextProvider.DbContext.Entry(entity).State =
@@ -47,7 +47,7 @@ namespace BuildingBlocks.Persistence
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void DeleteRange<T>(this IRepository<T> repository, IEnumerable<int> ids) where T : Entity
+        public static void DeleteRange<T, TId>(this IRepository<T, TId> repository, IEnumerable<TId> ids) where T : Entity<TId>
         {
             Guard.AgainstNull(ids, nameof(ids));
             foreach (var id in ids)
@@ -56,8 +56,8 @@ namespace BuildingBlocks.Persistence
             }
         }
 
-        public static int DeleteAll<T>(this IRepository<T> repository, Expression<Func<T, bool>> predicate = null,
-            bool cascade = false) where T : Entity
+        public static int DeleteAll<T, TId>(this IRepository<T, TId> repository, Expression<Func<T, bool>> predicate = null,
+            bool cascade = false) where T : Entity<TId>
         {
             var entities = repository.Table;
 
@@ -89,8 +89,8 @@ namespace BuildingBlocks.Persistence
             return count;
         }
 
-        public static async Task<int> DeleteAllAsync<T>(this IRepository<T> repository,
-            Expression<Func<T, bool>> predicate = null, bool cascade = false) where T : Entity
+        public static async Task<int> DeleteAllAsync<T, TId>(this IRepository<T, TId> repository,
+            Expression<Func<T, bool>> predicate = null, bool cascade = false) where T : Entity<TId>
         {
             var entities = repository.Table;
 
@@ -124,8 +124,8 @@ namespace BuildingBlocks.Persistence
             return count;
         }
 
-        public static IQueryable<T> Get<T>(this IRepository<T> repository, Expression<Func<T, bool>> predicate = null,
-            Func<IQueryable<T>, IOrderedQueryable<T>> orderBy = null, string includeProperties = "") where T : Entity
+        public static IQueryable<T> Get<T, TId>(this IRepository<T, TId> repository, Expression<Func<T, bool>> predicate = null,
+            Func<IQueryable<T>, IOrderedQueryable<T>> orderBy = null, string includeProperties = "") where T : Entity<TId>
         {
             var query = repository.Table;
 

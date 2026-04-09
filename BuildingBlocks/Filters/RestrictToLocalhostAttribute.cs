@@ -13,7 +13,7 @@ namespace BuildingBlocks.Filters;
 
 public class RestrictToLocalhostAttribute : ActionFilterAttribute
 {
-  public virtual void OnActionExecuting(ActionExecutingContext context)
+  public override void OnActionExecuting(ActionExecutingContext context)
   {
     if (!IPAddress.IsLoopback(((ActionContext) context).HttpContext.Connection.RemoteIpAddress))
       context.Result = (IActionResult) new UnauthorizedResult();

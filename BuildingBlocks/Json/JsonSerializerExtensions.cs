@@ -1,31 +1,64 @@
-﻿// Decompiled with JetBrains decompiler
-// Type: BuildingBlocks.Json.JsonSerializerExtensions
-// Assembly: BuildingBlocks, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null
-// MVID: 8587CF18-BE3D-4726-89FF-4AF7AAC01FA5
-// Assembly location: C:\Users\420919\Repositories\STS\Api\BuildingBlocks.dll
-
-#nullable disable
+﻿using System;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 
-namespace BuildingBlocks.Json;
-
-public static class JsonSerializerExtensions
+namespace BuildingBlocks.Json
 {
-  public static T TryDeserialize<T>(
-    this string json,
-    ILogger logger,
-    JsonSerializerOptions options = null)
-  {
-    try
+    public static class JsonSerializerExtensions
     {
-      return JsonSerializer.Deserialize<T>(json, options);
+        public static T? TryDeserialize<T>(
+            this string json,
+            ILogger logger,
+            JsonSerializerOptions? options = null)
+        {
+            try
+            {
+                // If no options provided, create default with the converter factory
+                if (options == null)
+                {
+                    options = new JsonSerializerOptions
+                    {
+                        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                        Converters =
+                        {
+                            new FlexibleListConverterFactory(),
+                            new FlexibleLongConverterFactory(),
+                            new FlexibleObjectListConverterFactory(),
+                            new FlexibleObjectListConverterFactory()
+                            // Add other converter factories or custom converters here if needed
+                        }
+                    };
+                }
+                else
+                {
+                    // Ensure the converter factory is included
+                    bool hasFactory = false;
+                    foreach (var converter in options.Converters)
+                    {
+                        if (converter is FlexibleListConverterFactory)
+                        {
+                            hasFactory = true;
+                            break;
+                        }
+                    }
+
+                    if (!hasFactory)
+                    {
+                        options.Converters.Add(new FlexibleListConverterFactory());
+                    }
+                }
+
+                return JsonSerializer.Deserialize<T>(json, options);
+            }
+            catch (JsonException ex)
+            {
+                if (logger != null)
+                    logger.LogError(ex,
+                        "JSON deserialization failed for type {TypeName} with payload: {Payload}.",
+                        typeof(T).Name,
+                        json);
+                return default(T);
+            }
+        }
     }
-    catch (JsonException ex)
-    {
-      if (logger != null)
-        logger.LogError((Exception) ex, "JSON deserialization failed for type {TypeName} with payload: {Payload}.", (object) typeof (T).Name, (object) json);
-      return default (T);
-    }
-  }
 }

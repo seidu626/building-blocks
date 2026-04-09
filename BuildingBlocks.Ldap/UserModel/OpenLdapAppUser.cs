@@ -56,10 +56,11 @@ public class OpenLdapAppUser : IAppUser
         };
         try
         {
-            IEnumerator<string> stringValues =
-                user.GetAttribute(OpenLdapAttributes.MemberOf.ToDescriptionString()).StringValues;
-            while (stringValues.MoveNext())
-                this.Claims.Add(new Claim("role", stringValues.Current.ToString()));
+            var stringValues =
+                user.Get(OpenLdapAttributes.MemberOf.ToDescriptionString()).StringValues;
+            using var enumerator = stringValues.GetEnumerator();
+            while (enumerator.MoveNext())
+                this.Claims.Add(new Claim("role", enumerator.Current.ToString()));
         }
         catch (Exception ex)
         {
@@ -76,7 +77,7 @@ public class OpenLdapAppUser : IAppUser
         string str = string.Empty;
         try
         {
-            str = user.GetAttribute(ldapAttribute.ToDescriptionString()).StringValue;
+            str = user.Get(ldapAttribute.ToDescriptionString()).StringValue;
             return new Claim(claim, str);
         }
         catch (Exception ex)
@@ -88,12 +89,12 @@ public class OpenLdapAppUser : IAppUser
 
     public void SetBaseDetails(LdapEntry ldapEntry, LdapEntry manager = null, string providerName = "")
     {
-        this.DisplayName = ldapEntry.GetAttribute(OpenLdapAttributes.DisplayName.ToDescriptionString()).StringValue;
-        this.Username = ldapEntry.GetAttribute(OpenLdapAttributes.UserName.ToDescriptionString()).StringValue;
-        this.Mobile = ldapEntry.GetAttribute(OpenLdapAttributes.TelephoneNumber.ToDescriptionString()).StringValue;
+        this.DisplayName = ldapEntry.Get(OpenLdapAttributes.DisplayName.ToDescriptionString()).StringValue;
+        this.Username = ldapEntry.Get(OpenLdapAttributes.UserName.ToDescriptionString()).StringValue;
+        this.Mobile = ldapEntry.Get(OpenLdapAttributes.TelephoneNumber.ToDescriptionString()).StringValue;
         try
         {
-            this.Email = ldapEntry.GetAttribute(OpenLdapAttributes.EMail.ToDescriptionString()).StringValue;
+            this.Email = ldapEntry.Get(OpenLdapAttributes.EMail.ToDescriptionString()).StringValue;
         }
         catch (Exception ex)
         {

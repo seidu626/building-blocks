@@ -53,13 +53,21 @@ public static class Extensions
     /// The current method should only be used for deserialization when the user intends to immediately
     /// populate all fields. It does not create an uninitialized string, 
     /// since creating an empty instance of an immutable type serves no purpose.
+    /// NOTE: FormatterServices is obsolete. This method now uses Activator.CreateInstance as a fallback.
     /// </remarks>
     /// <typeparam name="T">Generic Type</typeparam>
     /// <returns>An instance of type <typeparamref name="T"/> 
     /// with all its <c>non-static</c> fields initialized to its default value.
     /// </returns>
     [DebuggerStepThrough]
-    public static T GetUninitializedInstance<T>() => (T)FormatterServices.GetUninitializedObject(typeof(T));
+    [Obsolete("FormatterServices is obsolete. Using Activator.CreateInstance instead. This may not provide the same behavior.")]
+    public static T GetUninitializedInstance<T>()
+    {
+        // FormatterServices.GetUninitializedObject is obsolete
+        // Using Activator.CreateInstance as a fallback - note this will call constructors
+        // For true uninitialized instances, consider using System.Text.Json or other modern serialization
+        return Activator.CreateInstance<T>();
+    }
 
     /// <summary>
     /// Gets all the private, public, inherited instance property names for the given <paramref name="object"/>.

@@ -40,4 +40,12 @@ public static class ErrorCodes
   public const string NotFound = "NOT_FOUND";
   public const string MethodNotAllowed = "METHOD_NOT_ALLOWED";
   public const string RateLimitExceeded = "RATE_LIMIT_EXCEEDED";
+  
+  // Authentication and Authorization Error Codes
+  public const string InvalidCredentials = "INVALID_CREDENTIALS";
+  public const string AccountLockedOut = "ACCOUNT_LOCKED_OUT";
+  
+  // Service Availability Error Codes
+  public const string DirectoryUnavailable = "DIRECTORY_UNAVAILABLE";
+  public const string RemoteUnavailable = "REMOTE_UNAVAILABLE";
 }

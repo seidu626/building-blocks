@@ -1,4 +1,5 @@
 ﻿using BuildingBlocks.Ldap.UserStore;
+using Duende.IdentityServer;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 

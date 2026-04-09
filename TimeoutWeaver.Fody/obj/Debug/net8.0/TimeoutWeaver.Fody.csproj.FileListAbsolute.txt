@@ -1,0 +1,12 @@
+/home/xper626/Documents/repositories/building-blocks/TimeoutWeaver.Fody/bin/Debug/net8.0/TimeoutWeaver.Fody.xcf
+/home/xper626/Documents/repositories/building-blocks/TimeoutWeaver.Fody/bin/Debug/net8.0/TimeoutWeaver.Fody.deps.json
+/home/xper626/Documents/repositories/building-blocks/TimeoutWeaver.Fody/bin/Debug/net8.0/TimeoutWeaver.Fody.dll
+/home/xper626/Documents/repositories/building-blocks/TimeoutWeaver.Fody/obj/Debug/net8.0/TimeoutWeaver.Fody.csproj.AssemblyReference.cache
+/home/xper626/Documents/repositories/building-blocks/TimeoutWeaver.Fody/obj/Debug/net8.0/TimeoutWeaver.Fody.GeneratedMSBuildEditorConfig.editorconfig
+/home/xper626/Documents/repositories/building-blocks/TimeoutWeaver.Fody/obj/Debug/net8.0/TimeoutWeaver.Fody.AssemblyInfoInputs.cache
+/home/xper626/Documents/repositories/building-blocks/TimeoutWeaver.Fody/obj/Debug/net8.0/TimeoutWeaver.Fody.AssemblyInfo.cs
+/home/xper626/Documents/repositories/building-blocks/TimeoutWeaver.Fody/obj/Debug/net8.0/TimeoutWeaver.Fody.csproj.CoreCompileInputs.cache
+/home/xper626/Documents/repositories/building-blocks/TimeoutWeaver.Fody/obj/Debug/net8.0/TimeoutWeaver.Fody.sourcelink.json
+/home/xper626/Documents/repositories/building-blocks/TimeoutWeaver.Fody/obj/Debug/net8.0/TimeoutWeaver.Fody.dll
+/home/xper626/Documents/repositories/building-blocks/TimeoutWeaver.Fody/obj/Debug/net8.0/refint/TimeoutWeaver.Fody.dll
+/home/xper626/Documents/repositories/building-blocks/TimeoutWeaver.Fody/obj/Debug/net8.0/ref/TimeoutWeaver.Fody.dll

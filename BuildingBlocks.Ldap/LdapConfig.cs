@@ -2,6 +2,12 @@
 
 namespace BuildingBlocks.Ldap;
 
+public enum MockPasswordValidation
+{
+    PlainText,
+    Hash
+}
+
 public class LdapConfig
 {
     private Regex _preFilterRegex;
@@ -53,6 +59,21 @@ public class LdapConfig
     public uint? RefreshClaimsInSeconds { get; set; }
 
     public string[] ExtraAttributes { get; set; }
+
+    /// <summary>
+    /// Enable mock LDAP service for development/testing
+    /// </summary>
+    public bool UseMockLdap { get; set; }
+
+    /// <summary>
+    /// Path to the JSON file containing mock LDAP users
+    /// </summary>
+    public string? MockUsersFilePath { get; set; }
+
+    /// <summary>
+    /// Password validation method for mock LDAP (PlainText or Hash)
+    /// </summary>
+    public MockPasswordValidation MockPasswordValidation { get; set; } = MockPasswordValidation.PlainText;
 
     internal bool IsConcerned(string username)
     {

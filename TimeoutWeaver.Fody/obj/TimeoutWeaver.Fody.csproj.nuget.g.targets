@@ -1,6 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8" standalone="no"?>
 <Project ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ImportGroup Condition=" '$(ExcludeRestorePackageImports)' != 'true' ">
-    <Import Project="$(NuGetPackageRoot)fodyhelpers/6.8.2/build/FodyHelpers.targets" Condition="Exists('$(NuGetPackageRoot)fodyhelpers/6.8.2/build/FodyHelpers.targets')" />
+    <Import Project="$(NuGetPackageRoot)fodyhelpers/6.9.3/build/FodyHelpers.targets" Condition="Exists('$(NuGetPackageRoot)fodyhelpers/6.9.3/build/FodyHelpers.targets')" />
   </ImportGroup>
 </Project>

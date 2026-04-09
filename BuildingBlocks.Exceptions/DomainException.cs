@@ -26,10 +26,11 @@ public class DomainException : Exception
   {
   }
 
-  protected DomainException(SerializationInfo info, StreamingContext context)
-    : base(info, context)
-  {
-  }
+  // Obsolete serialization constructor removed - formatter-based serialization is obsolete
+  // protected DomainException(SerializationInfo info, StreamingContext context)
+  //   : base(info, context)
+  // {
+  // }
 
   public DomainException(string message, Exception innerException)
     : base(message, innerException)

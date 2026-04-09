@@ -7,7 +7,8 @@
 #nullable disable
 using System.Collections.Concurrent;
 using Novell.Directory.Ldap;
-using Serilog;
+using Microsoft.Extensions.Logging;
+
 namespace BuildingBlocks.Ldap;
 
 public class LdapConnectionPool
@@ -29,18 +30,17 @@ public class LdapConnectionPool
         this._connections = new ConcurrentBag<LdapConnection>();
     }
 
-    private LdapConnection CreateNewConnection()
+    private async Task<LdapConnection> CreateNewConnection()
     {
         LdapConnection newConnection = new LdapConnection();
-        newConnection.Connect(this._ldapHost, this._ldapPort);
-        newConnection.Bind(this._loginDn, this._password);
+        await newConnection.ConnectAsync(this._ldapHost, this._ldapPort);
+        await newConnection.BindAsync(this._loginDn, this._password);
         return newConnection;
     }
 
-    public LdapConnection AcquireConnection()
+    public async Task<LdapConnection> AcquireConnectionAsync()
     {
-        LdapConnection result;
-        return this._connections.TryTake(out result) ? result : this.CreateNewConnection();
+        return this._connections.TryTake(out var result) ? result : await this.CreateNewConnection();
     }
 
     public void ReleaseConnection(LdapConnection connection) => this._connections.Add(connection);
@@ -55,7 +55,7 @@ public class LdapConnectionPool
             }
             catch (Exception ex)
             {
-                this._logger.Error(ex, ex.Message);
+                this._logger.LogError(ex, ex.Message);
             }
         }
     }

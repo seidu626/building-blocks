@@ -19,7 +19,8 @@ public sealed class LocalRestClient : IRestClient, IDisposable
 #nullable disable
     HttpClient _client;
 
-  static LocalRestClient() => LocalRestClient.ConfigureServicePointManager();
+  // ServicePointManager is obsolete - HttpClient configuration is handled in GetHandler()
+  // static LocalRestClient() => LocalRestClient.ConfigureServicePointManager();
 
   public LocalRestClient(
     IDictionary<string, IEnumerable<string>> defaultRequestHeaders = null,
@@ -381,11 +382,12 @@ public sealed class LocalRestClient : IRestClient, IDisposable
 
   public void Dispose() => this._client.Dispose();
 
-  private static void ConfigureServicePointManager()
-  {
-    ServicePointManager.DnsRefreshTimeout = (int) LocalRestClient.ConnectionLifeTime.TotalMilliseconds;
-    ServicePointManager.DefaultConnectionLimit = 20;
-  }
+  // ServicePointManager is obsolete - configuration moved to SocketsHttpHandler in GetHandler()
+  // private static void ConfigureServicePointManager()
+  // {
+  //   ServicePointManager.DnsRefreshTimeout = (int) LocalRestClient.ConnectionLifeTime.TotalMilliseconds;
+  //   ServicePointManager.DefaultConnectionLimit = 20;
+  // }
 
   private void AddBaseAddress(Uri uri)
   {

@@ -3,17 +3,17 @@ using System.Collections.Generic;
 
 namespace BuildingBlocks.Persistence.Hooks
 {
-    public interface IDbHookHandler<TContext> where TContext : DbContext
+    public interface IDbHookHandler<TContext, TId> where TContext : DbContext
     {
         bool HasImportantSaveHooks();
 
-        IEnumerable<IDbSaveHook<TContext>> TriggerPreSaveHooks(
-            IEnumerable<IHookedEntity<TContext>> entries,
+        IEnumerable<IDbSaveHook<TContext, TId>> TriggerPreSaveHooks(
+            IEnumerable<IHookedEntity<TContext, TId>> entries,
             bool importantHooksOnly,
             out bool anyStateChanged);
 
-        IEnumerable<IDbSaveHook<TContext>> TriggerPostSaveHooks(
-            IEnumerable<IHookedEntity<TContext>> entries,
+        IEnumerable<IDbSaveHook<TContext, TId>> TriggerPostSaveHooks(
+            IEnumerable<IHookedEntity<TContext, TId>> entries,
             bool importantHooksOnly);
     }
 }

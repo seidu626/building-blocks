@@ -1,4 +1,5 @@
-﻿using BuildingBlocks.Ldap.UserStore;
+﻿using BuildingBlocks.Ldap.Services;
+using BuildingBlocks.Ldap.UserStore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -12,7 +13,16 @@ public static class AddLdapUsersServiceCollectionExtension
         where TUserDetails : IAppUser, new()
     {
         var ldapConfig = RegisterLdapConfigurations(serviceCollection, configuration);
-        serviceCollection.AddSingleton<ILdapService<TUserDetails>, LdapService<TUserDetails>>();
+        
+        // Conditionally register mock or real LDAP service
+        if (ldapConfig.UseMockLdap)
+        {
+            serviceCollection.AddSingleton<ILdapService<TUserDetails>, MockLdapService<TUserDetails>>();
+        }
+        else
+        {
+            serviceCollection.AddSingleton<ILdapService<TUserDetails>, LdapService<TUserDetails>>();
+        }
 
         if (ldapConfig.UserStore == UserStore.InMemory)
         {
@@ -32,8 +42,18 @@ public static class AddLdapUsersServiceCollectionExtension
         ILdapUserStore<TUserDetails> customUserStore)
         where TUserDetails : IAppUser, new()
     {
-        RegisterLdapConfigurations(serviceCollection, configuration);
-        serviceCollection.AddSingleton<ILdapService<TUserDetails>, LdapService<TUserDetails>>();
+        var ldapConfig = RegisterLdapConfigurations(serviceCollection, configuration);
+        
+        // Conditionally register mock or real LDAP service
+        if (ldapConfig.UseMockLdap)
+        {
+            serviceCollection.AddSingleton<ILdapService<TUserDetails>, MockLdapService<TUserDetails>>();
+        }
+        else
+        {
+            serviceCollection.AddSingleton<ILdapService<TUserDetails>, LdapService<TUserDetails>>();
+        }
+        
         serviceCollection.AddSingleton(customUserStore);
         return serviceCollection;
     }

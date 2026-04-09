@@ -6,7 +6,7 @@ using BuildingBlocks.Common.AOP;
 using BuildingBlocks.Exceptions;
 using BuildingBlocks.Ldap.Json;
 using CSharpFunctionalExtensions;
-using IdentityModel;
+using Duende.IdentityModel;
 using MethodTimer;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
@@ -104,7 +104,7 @@ namespace BuildingBlocks.Ldap.UserStore
         public async Task<Result<TUser, Error>> FindBySubjectIdAsync(string? subjectId)
         {
             return await FindAndCacheAsync(nameof(subjectId), subjectId,
-                () => _ldapService.FindUser(subjectId.Replace("ldap_", "")));
+                () => _ldapService.FindUser(subjectId?.Replace("ldap_", "")));
         }
 
         public async Task<Result<TUser, Error>> FindByUsernameAsync(string? username)

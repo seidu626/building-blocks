@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace BuildingBlocks.Persistence
 {
-    public interface IRepository<TEntity> where TEntity : Entity
+    public interface IRepository<TEntity, TId> where TEntity : Entity<TId>
     {
         DbContextProvider ContextProvider { get; }
         IQueryable<TEntity> Table { get; }
@@ -56,15 +56,15 @@ namespace BuildingBlocks.Persistence
             int pageIndex = 0, int pageSize = int.MaxValue, bool getOnlyTotalCount = false, bool includeDeleted = true);
 
 
-        TEntity GetById(int id);
+        TEntity GetById(TId id);
 
         ValueTask<TEntity> GetByIdAsync(
-            int id,
+            TId id,
             Func<ICacheKeyService, CacheKey> getCacheKey = null,
             bool includeDeleted = false);
 
         Task<List<TEntity>> GetByIdsAsync(
-            IEnumerable<int> ids,
+            IEnumerable<TId> ids,
             Func<ICacheKeyService, CacheKey> getCacheKey = null,
             bool includeDeleted = false);
 

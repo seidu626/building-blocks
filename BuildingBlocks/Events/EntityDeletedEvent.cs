@@ -9,9 +9,9 @@ using BuildingBlocks.SeedWork;
 
 namespace BuildingBlocks.Events;
 
-public class EntityDeletedEvent<T> where T : Entity
+public class EntityDeletedEvent<TEntity, TId> where TEntity : Entity<TId>
 {
-  public EntityDeletedEvent(T entity) => this.Entity = entity;
+  public EntityDeletedEvent(TEntity entity) => this.Entity = entity;
 
-  public T Entity { get; }
+  public TEntity Entity { get; }
 }

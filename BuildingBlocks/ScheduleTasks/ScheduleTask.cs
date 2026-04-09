@@ -9,7 +9,7 @@ using BuildingBlocks.SeedWork;
 
 namespace BuildingBlocks.ScheduleTasks;
 
-public class ScheduleTask : Entity
+public class ScheduleTask : Entity<int>
 {
   public string Name { get; set; }
 

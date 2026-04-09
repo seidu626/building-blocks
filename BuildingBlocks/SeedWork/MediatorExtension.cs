@@ -5,7 +5,7 @@ namespace BuildingBlocks.SeedWork
 {
     public static class MediatorExtension
     {
-        public static async ValueTask DispatchDomainEventsAsync<TDataContext>(
+        public static async ValueTask DispatchDomainEventsAsync<TDataContext, TId>(
             this IMediator mediator,
             TDataContext context,
             CancellationToken cancellationToken)
@@ -13,7 +13,7 @@ namespace BuildingBlocks.SeedWork
         {
             // Fetch entities with domain events
             var entitiesWithEvents = context.ChangeTracker
-                .Entries<Entity>()
+                .Entries<Entity<TId>>()
                 .Where(entry => entry.Entity.DomainEvents != null && entry.Entity.DomainEvents.Any())
                 .ToArray();
 
@@ -35,10 +35,10 @@ namespace BuildingBlocks.SeedWork
             }
         }
 
-        public static async Task DispatchDomainEventsAsync2<TContext>(this IMediator mediator, TContext ctx,
+        public static async Task DispatchDomainEventsAsync2<TContext, TId>(this IMediator mediator, TContext ctx,
             CancellationToken cancellationToken) where TContext : DbContext
         {
-            var domainEntities = ctx.ChangeTracker.Entries<Entity>()
+            var domainEntities = ctx.ChangeTracker.Entries<Entity<TId>>()
                 .Where(x => x.Entity.DomainEvents != null && x.Entity.DomainEvents.Any()).ToArray();
 
             var domainEvents = domainEntities

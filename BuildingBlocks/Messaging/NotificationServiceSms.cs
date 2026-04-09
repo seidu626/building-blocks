@@ -1,10 +1,13 @@
 using System.Diagnostics;
 using System.Net;
+using BuildingBlocks.Common;
 using BuildingBlocks.Exceptions;
+using BuildingBlocks.Utilities;
 using CSharpFunctionalExtensions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Parlot.Fluent;
 using Polly;
 using Polly.Retry;
 
@@ -40,9 +43,14 @@ namespace BuildingBlocks.Messaging;
         }
 
         public async Task<Result<bool, Error>> SendAsync(string msisdn, string message,
-            CancellationToken cancellationToken)
+    CancellationToken cancellationToken)
         {
-            var response = await _retryPolicy.ExecuteAsync(() => ExecuteAsync(msisdn, message, cancellationToken));
+        var countryCode = !string.IsNullOrWhiteSpace(_smscSettings.DefaultCountryCode) 
+            ? _smscSettings.DefaultCountryCode 
+            : "233";
+        msisdn = PhoneNumberNormalizer.NormalizePhoneNumber(msisdn, countryCode);
+
+        var response = await _retryPolicy.ExecuteAsync(() => ExecuteAsync(msisdn, message, cancellationToken));
 
             if (response.IsSuccessStatusCode) return true;
             _logger.LogError($"Request failed with status code {response.StatusCode}");

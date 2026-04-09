@@ -10,6 +10,8 @@ public class IdentityApiConfig : IConfig
   public string ApiVersion { get; set; }
 
   public string IdentityServerBaseUrl { get; set; }
+  public string AuthorizationUrl { get; set; }
+  public string TokenUrl { get; set; }
   public string ApiBaseUrl { get; set; }
 
   public bool RequireHttpsMetadata { get; set; }

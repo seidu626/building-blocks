@@ -1,29 +1,30 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net8.0</TargetFramework>
+        <TargetFramework>net9.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
     </PropertyGroup>
 
     <ItemGroup>
-      <PackageReference Include="CSharpFunctionalExtensions" Version="3.1.0" />
-      <PackageReference Include="Duende.IdentityServer" Version="7.0.7" />
-      <PackageReference Include="Fody" Version="6.8.2">
+      <PackageReference Include="CSharpFunctionalExtensions" Version="3.6.0" />
+      <PackageReference Include="Duende.IdentityModel" Version="7.1.0" />
+      <PackageReference Include="Duende.IdentityServer" Version="7.3.2" />
+      <PackageReference Include="Fody" Version="6.9.3">
         <PrivateAssets>all</PrivateAssets>
         <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       </PackageReference>
-      <PackageReference Include="MethodTimer.Fody" Version="3.2.2" />
-      <PackageReference Include="Microsoft.Extensions.Configuration" Version="8.0.0" />
-      <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
-      <PackageReference Include="Novell.Directory.Ldap.NETStandard" Version="3.6.0" />
-      <PackageReference Include="Polly" Version="8.4.2" />
-      <PackageReference Include="StackExchange.Redis.Extensions.AspNetCore" Version="10.2.0" />
+      <PackageReference Include="MethodTimer.Fody" Version="3.2.3" />
+      <PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.10" />
+      <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.10" />
+      <PackageReference Include="Novell.Directory.Ldap.NETStandard" Version="4.0.0" />
+      <PackageReference Include="Polly" Version="8.6.4" />
+      <PackageReference Include="StackExchange.Redis.Extensions.AspNetCore" Version="11.0.0" />
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\BuildingBlocks.Common\BuildingBlocks.Common.csproj" />
       <ProjectReference Include="..\BuildingBlocks.Exceptions\BuildingBlocks.Exceptions.csproj" />
+      <ProjectReference Include="..\BuildingBlocks\BuildingBlocks.csproj" />
     </ItemGroup>
 
 </Project>

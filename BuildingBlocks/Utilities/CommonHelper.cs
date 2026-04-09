@@ -398,7 +398,9 @@ public static partial class CommonHelper
 
             var serialized = false;
 
-            if (type.IsSerializable && genericArguments.All(x => x.IsSerializable))
+            // Type.IsSerializable is obsolete - formatter-based serialization is obsolete
+            // Removing this check as it's no longer relevant
+            if (false) // type.IsSerializable && genericArguments.All(x => x.IsSerializable)
             {
                 try
                 {

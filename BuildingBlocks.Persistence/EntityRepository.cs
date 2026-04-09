@@ -15,7 +15,7 @@ using BuildingBlocks.Persistence.Extensions;
 
 namespace BuildingBlocks.Persistence
 {
-    public sealed class EntityRepository<TEntity> : IRepository<TEntity> where TEntity : Entity, new()
+    public sealed class EntityRepository<TEntity, TId> : IRepository<TEntity, TId> where TEntity : Entity<TId>, new()
     {
         private readonly IEventPublisher _eventPublisher;
         private readonly IStaticCacheManager _staticCacheManager;
@@ -159,7 +159,7 @@ namespace BuildingBlocks.Persistence
             return await query.ToPagedListAsync(pageIndex, pageSize, getOnlyTotalCount);
         }
 
-        public async ValueTask<TEntity> GetByIdAsync(int id, Func<ICacheKeyService, CacheKey> getCacheKey = null,
+        public async ValueTask<TEntity> GetByIdAsync(TId id, Func<ICacheKeyService, CacheKey> getCacheKey = null,
             bool includeDeleted = true)
         {
             if (getCacheKey == null)
@@ -168,22 +168,22 @@ namespace BuildingBlocks.Persistence
             }
 
             var cacheKey = getCacheKey(_staticCacheManager) ??
-                           _staticCacheManager.PrepareKeyForDefaultCache(EntityCacheDefaults<TEntity>.ByIdCacheKey, id);
+                           _staticCacheManager.PrepareKeyForDefaultCache(EntityCacheDefaults<TEntity, TId>.ByIdCacheKey, id);
             return await _staticCacheManager.GetAsync(cacheKey, GetEntityAsync);
 
             async Task<TEntity> GetEntityAsync()
             {
-                return await AddDeletedFilter(Table, includeDeleted).FirstOrDefaultAsync(e => e.Id == id);
+                return await AddDeletedFilter(Table, includeDeleted).FirstOrDefaultAsync(e => e.Id.Equals(id));
             }
         }
 
-        public Task<List<TEntity>> GetByIdsAsync(IEnumerable<int> ids,
+        public Task<List<TEntity>> GetByIdsAsync(IEnumerable<TId> ids,
             Func<ICacheKeyService, CacheKey> getCacheKey = null, bool includeDeleted = false)
         {
             throw new NotImplementedException();
         }
 
-        public async Task<IList<TEntity>> GetByIdsAsync(IList<int> ids,
+        public async Task<IList<TEntity>> GetByIdsAsync(IList<TId> ids,
             Func<IStaticCacheManager, CacheKey> getCacheKey = null, bool includeDeleted = true)
         {
             if (ids == null || !ids.Any())
@@ -197,7 +197,7 @@ namespace BuildingBlocks.Persistence
             }
 
             var cacheKey = getCacheKey(_staticCacheManager) ??
-                           _staticCacheManager.PrepareKeyForDefaultCache(EntityCacheDefaults<TEntity>.ByIdsCacheKey,
+                           _staticCacheManager.PrepareKeyForDefaultCache(EntityCacheDefaults<TEntity, TId>.ByIdsCacheKey,
                                ids);
             return await _staticCacheManager.GetAsync(cacheKey, GetEntitiesByIdsAsync);
 
@@ -205,21 +205,18 @@ namespace BuildingBlocks.Persistence
             {
                 var query = AddDeletedFilter(Table, includeDeleted).Where(e => ids.Contains(e.Id));
                 var entities = await query.ToListAsync();
-                return ids.Select(id => entities.FirstOrDefault(e => e.Id == id)).Where(e => e != null).ToList();
+                return ids.Select(id => entities.FirstOrDefault(e => e.Id.Equals(id))).Where(e => e != null).ToList();
             }
         }
 
         public async Task InsertAsync(TEntity entity, bool publishEvent = true)
         {
-            if (entity == null)
-            {
-                throw new ArgumentNullException(nameof(entity));
-            }
+            if (entity == null) throw new ArgumentNullException(nameof(entity));
 
-            await _context.AddAsync(entity);
+            _context.Add(entity);
             if (publishEvent)
             {
-                await _eventPublisher.EntityInsertedAsync(entity);
+                await _eventPublisher.EntityInsertedAsync<TEntity, TId>(entity);
             }
         }
 
@@ -240,7 +237,7 @@ namespace BuildingBlocks.Persistence
                 {
                     foreach (var entity in entities)
                     {
-                        await _eventPublisher.EntityInsertedAsync(entity);
+                        await _eventPublisher.EntityInsertedAsync<TEntity, TId>(entity);
                     }
                 }
             }
@@ -265,7 +262,7 @@ namespace BuildingBlocks.Persistence
             _context.Update(entity);
             if (publishEvent)
             {
-                await _eventPublisher.EntityUpdatedAsync(entity);
+                await _eventPublisher.EntityUpdatedAsync<TEntity, TId>(entity);
             }
         }
 
@@ -278,7 +275,7 @@ namespace BuildingBlocks.Persistence
             {
                 foreach (var entity in entities)
                 {
-                    await _eventPublisher.EntityUpdatedAsync(entity);
+                    await _eventPublisher.EntityUpdatedAsync<TEntity, TId>(entity);
                 }
             }
         }
@@ -299,7 +296,7 @@ namespace BuildingBlocks.Persistence
 
             if (publishEvent)
             {
-                await _eventPublisher.EntityDeletedAsync(entity);
+                await _eventPublisher.EntityDeletedAsync<TEntity, TId>(entity);
             }
         }
 
@@ -324,7 +321,7 @@ namespace BuildingBlocks.Persistence
             {
                 foreach (var entity in entities)
                 {
-                    await _eventPublisher.EntityDeletedAsync(entity);
+                    await _eventPublisher.EntityDeletedAsync<TEntity, TId>(entity);
                 }
             }
         }
@@ -344,7 +341,7 @@ namespace BuildingBlocks.Persistence
             await _context.Database.ExecuteSqlRawAsync($"TRUNCATE TABLE {tableName}");
         }
 
-        public TEntity GetById(int id)
+        public TEntity GetById(TId id)
         {
             return Entities.Find(id);
         }
@@ -463,7 +460,7 @@ namespace BuildingBlocks.Persistence
                 ? await getAllAsync()
                 : await _staticCacheManager.GetAsync(
                     getCacheKey(_staticCacheManager) ??
-                    _staticCacheManager.PrepareKeyForDefaultCache(EntityCacheDefaults<TEntity>.AllCacheKey,
+                    _staticCacheManager.PrepareKeyForDefaultCache(EntityCacheDefaults<TEntity, TId>.AllCacheKey,
                         Array.Empty<object>()), getAllAsync);
         }
 
@@ -473,7 +470,7 @@ namespace BuildingBlocks.Persistence
                 ? getAll()
                 : _staticCacheManager.Get(
                     getCacheKey(_staticCacheManager) ??
-                    _staticCacheManager.PrepareKeyForDefaultCache(EntityCacheDefaults<TEntity>.AllCacheKey,
+                    _staticCacheManager.PrepareKeyForDefaultCache(EntityCacheDefaults<TEntity, TId>.AllCacheKey,
                         Array.Empty<object>()), getAll);
         }
 

@@ -9,9 +9,9 @@ using BuildingBlocks.SeedWork;
 
 namespace BuildingBlocks.Events;
 
-public class EntityUpdatedEvent<T> where T : Entity
+public class EntityUpdatedEvent<TEntity, TId> where TEntity : Entity<TId>
 {
-  public EntityUpdatedEvent(T entity) => this.Entity = entity;
+  public EntityUpdatedEvent(TEntity entity) => this.Entity = entity;
 
-  public T Entity { get; }
+  public TEntity Entity { get; }
 }

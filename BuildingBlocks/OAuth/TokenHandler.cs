@@ -22,7 +22,7 @@ public class TokenHandler : DelegatingHandler
     this._httpContextAccessor = httpContextAccessor;
   }
 
-  protected virtual async Task<HttpResponseMessage> SendAsync(
+  protected override async Task<HttpResponseMessage> SendAsync(
     HttpRequestMessage request,
     CancellationToken cancellationToken)
   {

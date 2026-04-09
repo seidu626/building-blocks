@@ -26,8 +26,9 @@ public sealed class ProducerConsumerQueueException : Exception
   {
   }
 
-  internal ProducerConsumerQueueException(SerializationInfo info, StreamingContext context)
-    : base(info, context)
-  {
-  }
+  // Obsolete serialization constructor removed - formatter-based serialization is obsolete
+  // internal ProducerConsumerQueueException(SerializationInfo info, StreamingContext context)
+  //   : base(info, context)
+  // {
+  // }
 }

@@ -2,7 +2,7 @@
   "version": 3,
   "targets": {
     "net8.0": {
-      "FodyHelpers/6.8.2": {
+      "FodyHelpers/6.9.3": {
         "type": "package",
         "compile": {
           "lib/netstandard2.0/FodyHelpers.dll": {
@@ -40,16 +40,16 @@
     }
   },
   "libraries": {
-    "FodyHelpers/6.8.2": {
-      "sha512": "WItt96EFCARpbWuVEmjE7RKFdMNvRyfdFM4Ckp6h85yA8iEJ4z3jDs4hhTDQckgwqOMf62laXekcFs2h7dHZjQ==",
+    "FodyHelpers/6.9.3": {
+      "sha512": "c75VQraygFPKpxtg9WE7XVFZwCPS2K88N5K9BIxGqyj/woHVrsubFAl9uWv/6e8oBY35lHgbdPLgrCLXknD16A==",
       "type": "package",
-      "path": "fodyhelpers/6.8.2",
+      "path": "fodyhelpers/6.9.3",
       "files": [
         ".nupkg.metadata",
         ".signature.p7s",
         "build/FodyHelpers.props",
         "build/FodyHelpers.targets",
-        "fodyhelpers.6.8.2.nupkg.sha512",
+        "fodyhelpers.6.9.3.nupkg.sha512",
         "fodyhelpers.nuspec",
         "lib/net472/FodyHelpers.dll",
         "lib/net472/FodyHelpers.xml",
@@ -66,13 +66,15 @@
         "lib/netstandard2.0/Mono.Cecil.Rocks.dll",
         "lib/netstandard2.0/Mono.Cecil.Rocks.pdb",
         "lib/netstandard2.0/Mono.Cecil.dll",
-        "lib/netstandard2.0/Mono.Cecil.pdb"
+        "lib/netstandard2.0/Mono.Cecil.pdb",
+        "package_icon.png",
+        "package_readme.md"
       ]
     }
   },
   "projectFileDependencyGroups": {
     "net8.0": [
-      "FodyHelpers >= 6.8.2"
+      "FodyHelpers >= 6.9.3"
     ]
   },
   "packageFolders": {
@@ -106,7 +108,13 @@
         "warnAsError": [
           "NU1605"
         ]
-      }
+      },
+      "restoreAuditProperties": {
+        "enableAudit": "true",
+        "auditLevel": "low",
+        "auditMode": "direct"
+      },
+      "SdkAnalysisLevel": "9.0.300"
     },
     "frameworks": {
       "net8.0": {
@@ -114,7 +122,7 @@
         "dependencies": {
           "FodyHelpers": {
             "target": "Package",
-            "version": "[6.8.2, )"
+            "version": "[6.9.3, )"
           }
         },
         "imports": [
@@ -128,12 +136,22 @@
         ],
         "assetTargetFallback": true,
         "warn": true,
+        "downloadDependencies": [
+          {
+            "name": "Microsoft.AspNetCore.App.Ref",
+            "version": "[8.0.18, 8.0.18]"
+          },
+          {
+            "name": "Microsoft.NETCore.App.Ref",
+            "version": "[8.0.18, 8.0.18]"
+          }
+        ],
         "frameworkReferences": {
           "Microsoft.NETCore.App": {
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "/home/xper626/.dotnet/sdk/8.0.401/PortableRuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "/home/xper626/.dotnet/sdk/9.0.303/PortableRuntimeIdentifierGraph.json"
       }
     }
   }

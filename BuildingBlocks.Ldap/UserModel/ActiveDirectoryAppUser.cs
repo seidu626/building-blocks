@@ -16,16 +16,17 @@ public class ActiveDirectoryAppUser : IAppUser
     }
     public string? ProviderSubjectId { get; set; }
     public string? ProviderName { get; set; }
-    public string DisplayName { get; set; }
-    public string EmployeeNumber { get; set; }
+    public string DisplayName { get; set; } = string.Empty;
+    public string EmployeeNumber { get; set; } = string.Empty;
     public string? Username { get; set; }
-    public string Fullname { get; set; }
-    public string Title { get; set; }
-    public string Description { get; set; }
+    public string Fullname { get; set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
     public string? Email { get; set; }
-    public string Department { get; set; }
-    public string Division { get; set; }
-    public string Mobile { get; set; }
+    public string Department { get; set; } = string.Empty;
+    public string Division { get; set; } = string.Empty;
+    public string Mobile { get; set; } = string.Empty;
+    public string EmployeeType { get; set; } = string.Empty;
     public long? LockoutTime { get; set; }
     public long? PwdLastSet { get; set; }
     public long? BadPwdCount { get; set; }
@@ -83,7 +84,9 @@ public class ActiveDirectoryAppUser : IAppUser
             GetClaimFromLdapAttributes(user, "department", ActiveDirectoryLdapAttributes.Department),
             GetClaimFromLdapAttributes(user, "createdOn", ActiveDirectoryLdapAttributes.CreatedOn),
             GetClaimFromLdapAttributes(user, "updatedOn", ActiveDirectoryLdapAttributes.UpdatedOn),
-            GetClaimFromLdapAttributes(user, "employeeType", ActiveDirectoryLdapAttributes.EmployeeType)
+            GetClaimFromLdapAttributes(user, "employeeNumber", ActiveDirectoryLdapAttributes.EmployeeNumber),
+            GetClaimFromLdapAttributes(user, "employeeType", ActiveDirectoryLdapAttributes.EmployeeType),
+            GetClaimFromLdapAttributes(user, "accountExpires", ActiveDirectoryLdapAttributes.AccountExpires)
         };
         
         if (manager != null)
@@ -104,12 +107,13 @@ public class ActiveDirectoryAppUser : IAppUser
 
         try
         {
-            var stringValues = user.GetAttribute(ActiveDirectoryLdapAttributes.MemberOf.ToDescriptionString())
+            var stringValues = user.Get(ActiveDirectoryLdapAttributes.MemberOf.ToDescriptionString())
                 ?.StringValues;
             if (stringValues == null) return;
-            while (stringValues.MoveNext())
+            using var enumerator = stringValues.GetEnumerator();
+            while (enumerator.MoveNext())
             {
-                var curr = stringValues.Current;
+                var curr = enumerator.Current;
                 if (curr != null)
                 {
                     Claims.Add(new Claim("role", curr));
@@ -136,6 +140,7 @@ public class ActiveDirectoryAppUser : IAppUser
             DisplayName = SafeGetAttributeStringValue(ldapEntry, ActiveDirectoryLdapAttributes.DisplayName.ToDescriptionString());
             Fullname = SafeGetAttributeStringValue(ldapEntry, ActiveDirectoryLdapAttributes.FullName.ToDescriptionString());
             EmployeeNumber = SafeGetAttributeStringValue(ldapEntry, ActiveDirectoryLdapAttributes.EmployeeNumber.ToDescriptionString());
+            EmployeeType = SafeGetAttributeStringValue(ldapEntry, ActiveDirectoryLdapAttributes.EmployeeType.ToDescriptionString());
             Username = SafeGetAttributeStringValue(ldapEntry, ActiveDirectoryLdapAttributes.UserName.ToDescriptionString());
             Email = SafeGetAttributeStringValue(ldapEntry, ActiveDirectoryLdapAttributes.EMail.ToDescriptionString());
             Title = SafeGetAttributeStringValue(ldapEntry, ActiveDirectoryLdapAttributes.Tile.ToDescriptionString());
@@ -157,7 +162,7 @@ public class ActiveDirectoryAppUser : IAppUser
     {
         try
         {
-            return ldapEntry.GetAttribute(attributeName)?.StringValue;
+            return ldapEntry.Get(attributeName)?.StringValue;
         }
         catch (KeyNotFoundException)
         {

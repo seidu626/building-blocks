@@ -358,7 +358,7 @@ public static class EnumerableExtensions
   public static IEnumerable<TEntity> OrderBySequence<TEntity>(
     this IEnumerable<TEntity> source,
     IEnumerable<int> ids)
-    where TEntity : Entity
+    where TEntity : Entity<int>
   {
     if (source == null)
       throw new ArgumentNullException(nameof (source));

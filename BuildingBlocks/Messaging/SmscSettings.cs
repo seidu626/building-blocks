@@ -11,4 +11,8 @@ public class SmscSettings
     public string MOBILENO { get; set; }
     public string MESSAGE { get; set; }
     public string TYPE { get; set; }
+    /// <summary>
+    /// Default country code for phone number normalization (e.g., "233" for Ghana).
+    /// </summary>
+    public string DefaultCountryCode { get; set; } = "233";
 }

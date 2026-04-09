@@ -17,7 +17,7 @@ public class IdempotencyAttribute : ActionFilterAttribute
 {
   private static readonly ConcurrentDictionary<string, object> IdempotencyTokens = new ConcurrentDictionary<string, object>();
 
-  public virtual void OnActionExecuting(ActionExecutingContext context)
+  public override void OnActionExecuting(ActionExecutingContext context)
   {
     StringValues source;
     if (((IDictionary<string, StringValues>) ((ActionContext) context).HttpContext.Request.Headers).TryGetValue("Idempotency-Token", out source))

@@ -6,7 +6,7 @@ using System;
 
 namespace BuildingBlocks.Persistence.Hooks
 {
-    public class HookedEntity<TDbContext> : IHookedEntity<TDbContext> where TDbContext : DbContext
+    public class HookedEntity<TDbContext, TId> : IHookedEntity<TDbContext, TId> where TDbContext : DbContext
     {
         private Type _entityType;
 
@@ -26,7 +26,7 @@ namespace BuildingBlocks.Persistence.Hooks
 
         public EntityEntry Entry { get; }
 
-        public Entity Entity => Entry.Entity as Entity;
+        public Entity<TId> Entity => Entry.Entity as Entity<TId>;
 
         public Type EntityType
         {

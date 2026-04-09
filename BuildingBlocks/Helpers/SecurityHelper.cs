@@ -9,9 +9,9 @@ namespace BuildingBlocks.Helpers
         public static string GenerateSalt(int saltLength)
         {
             byte[] saltBytes = new byte[saltLength];
-            using (var cryptoServiceProvider = new RNGCryptoServiceProvider())
+            using (var rng = RandomNumberGenerator.Create())
             {
-                cryptoServiceProvider.GetNonZeroBytes(saltBytes);
+                rng.GetNonZeroBytes(saltBytes);
             }
             return Convert.ToBase64String(saltBytes);
         }
@@ -19,7 +19,7 @@ namespace BuildingBlocks.Helpers
         public static string HashPassword(string password, string salt, int iterations, int hashLength)
         {
             byte[] saltBytes = Convert.FromBase64String(salt);
-            using (var rfc2898DeriveBytes = new Rfc2898DeriveBytes(password, saltBytes, iterations))
+            using (var rfc2898DeriveBytes = new Rfc2898DeriveBytes(password, saltBytes, iterations, HashAlgorithmName.SHA256))
             {
                 return Convert.ToBase64String(rfc2898DeriveBytes.GetBytes(hashLength));
             }
@@ -85,12 +85,12 @@ namespace BuildingBlocks.Helpers
                 throw new ArgumentException("allowedChars may contain no more than 256 characters.");
 
             StringBuilder randomStringBuilder = new StringBuilder();
-            using (var cryptoServiceProvider = new RNGCryptoServiceProvider())
+            using (var rng = RandomNumberGenerator.Create())
             {
                 byte[] randomBytes = new byte[128];
                 while (randomStringBuilder.Length < length)
                 {
-                    cryptoServiceProvider.GetBytes(randomBytes);
+                    rng.GetBytes(randomBytes);
                     foreach (byte b in randomBytes)
                     {
                         if (randomStringBuilder.Length >= length) break;

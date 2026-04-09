@@ -13,7 +13,7 @@ namespace BuildingBlocks.Filters;
 
 public class ValidateModelStateFilter : ActionFilterAttribute
 {
-  public virtual void OnActionExecuting(
+  public override void OnActionExecuting(
 #nullable disable
     ActionExecutingContext context)
   {

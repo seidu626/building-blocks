@@ -15,7 +15,7 @@ public class Stacky
   private static readonly JsonSerializerOptions Options = new JsonSerializerOptions()
   {
     WriteIndented = true,
-    IgnoreNullValues = true
+    DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
   };
 
   [DataMember(Order = 0)]

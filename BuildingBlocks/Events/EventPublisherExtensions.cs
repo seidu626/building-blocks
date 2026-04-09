@@ -11,20 +11,18 @@ namespace BuildingBlocks.Events;
 
 public static class EventPublisherExtensions
 {
-  public static async 
-#nullable disable
-    Task EntityInsertedAsync<T>(this IEventPublisher eventPublisher, T entity) where T : Entity
+  public static async Task EntityInsertedAsync<TEntity, TId>(this IEventPublisher eventPublisher, TEntity entity) where TEntity : Entity<TId>
   {
-    await eventPublisher.PublishAsync<EntityInsertedEvent<T>>(new EntityInsertedEvent<T>(entity));
+    await eventPublisher.PublishAsync<EntityInsertedEvent<TEntity, TId>>(new EntityInsertedEvent<TEntity, TId>(entity));
   }
 
-  public static async Task EntityUpdatedAsync<T>(this IEventPublisher eventPublisher, T entity) where T : Entity
+  public static async Task EntityUpdatedAsync<TEntity, TId>(this IEventPublisher eventPublisher, TEntity entity) where TEntity : Entity<TId>
   {
-    await eventPublisher.PublishAsync<EntityUpdatedEvent<T>>(new EntityUpdatedEvent<T>(entity));
+    await eventPublisher.PublishAsync<EntityUpdatedEvent<TEntity, TId>>(new EntityUpdatedEvent<TEntity, TId>(entity));
   }
 
-  public static async Task EntityDeletedAsync<T>(this IEventPublisher eventPublisher, T entity) where T : Entity
+  public static async Task EntityDeletedAsync<TEntity, TId>(this IEventPublisher eventPublisher, TEntity entity) where TEntity : Entity<TId>
   {
-    await eventPublisher.PublishAsync<EntityDeletedEvent<T>>(new EntityDeletedEvent<T>(entity));
+    await eventPublisher.PublishAsync<EntityDeletedEvent<TEntity, TId>>(new EntityDeletedEvent<TEntity, TId>(entity));
   }
 }

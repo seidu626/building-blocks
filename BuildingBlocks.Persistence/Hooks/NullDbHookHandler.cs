@@ -11,28 +11,28 @@ using System.Linq;
 #nullable disable
 namespace BuildingBlocks.Persistence.Hooks
 {
-  public sealed class NullDbHookHandler<TContext> : IDbHookHandler<TContext> where TContext : DbContext
+  public sealed class NullDbHookHandler<TContext, TId> : IDbHookHandler<TContext, TId> where TContext : DbContext
   {
-    private static readonly IDbHookHandler<TContext> s_instance = (IDbHookHandler<TContext>) new NullDbHookHandler<TContext>();
+    private static readonly IDbHookHandler<TContext, TId> s_instance = new NullDbHookHandler<TContext, TId>();
 
-    public static IDbHookHandler<TContext> Instance => NullDbHookHandler<TContext>.s_instance;
+    public static IDbHookHandler<TContext, TId> Instance => s_instance;
 
     public bool HasImportantSaveHooks() => false;
 
-    public IEnumerable<IDbSaveHook<TContext>> TriggerPreSaveHooks(
-      IEnumerable<IHookedEntity<TContext>> entries,
+    public IEnumerable<IDbSaveHook<TContext, TId>> TriggerPreSaveHooks(
+      IEnumerable<IHookedEntity<TContext, TId>> entries,
       bool importantHooksOnly,
       out bool anyStateChanged)
     {
       anyStateChanged = false;
-      return Enumerable.Empty<IDbSaveHook<TContext>>();
+      return Enumerable.Empty<IDbSaveHook<TContext, TId>>();
     }
 
-    public IEnumerable<IDbSaveHook<TContext>> TriggerPostSaveHooks(
-      IEnumerable<IHookedEntity<TContext>> entries,
+    public IEnumerable<IDbSaveHook<TContext, TId>> TriggerPostSaveHooks(
+      IEnumerable<IHookedEntity<TContext, TId>> entries,
       bool importantHooksOnly)
     {
-      return Enumerable.Empty<IDbSaveHook<TContext>>();
+      return Enumerable.Empty<IDbSaveHook<TContext, TId>>();
     }
   }
 }

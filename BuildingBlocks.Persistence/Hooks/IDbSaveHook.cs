@@ -9,11 +9,11 @@ using Microsoft.EntityFrameworkCore;
 #nullable disable
 namespace BuildingBlocks.Persistence.Hooks
 {
-  public interface IDbSaveHook<TContext> where TContext : DbContext
+  public interface IDbSaveHook<TContext, TId> where TContext : DbContext
   {
-    void OnBeforeSave(IHookedEntity<TContext> entry);
+    void OnBeforeSave(IHookedEntity<TContext, TId> entry);
 
-    void OnAfterSave(IHookedEntity<TContext> entry);
+    void OnAfterSave(IHookedEntity<TContext, TId> entry);
 
     void OnBeforeSaveCompleted();
 

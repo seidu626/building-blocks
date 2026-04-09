@@ -40,9 +40,9 @@ namespace BuildingBlocks.Caching
                     return "null";
                 case IEnumerable<int> ids:
                     return CreateIdsHash(ids);
-                case IEnumerable<Entity> entities:
+                case IEnumerable<Entity<int>> entities:
                     return CreateIdsHash(entities.Select(entity => entity.Id));
-                case Entity entity:
+                case Entity<int> entity:
                     return entity.Id;
                 case decimal num:
                     return num.ToString(CultureInfo.InvariantCulture);

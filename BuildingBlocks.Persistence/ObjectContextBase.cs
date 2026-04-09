@@ -54,7 +54,7 @@ namespace BuildingBlocks.Persistence
             return DataSettingsManager.Current.ConnectionString;
         }
 
-        public void ChangeState<TEntity>(TEntity entity, EntityState requestedState) where TEntity : Entity
+        public void ChangeState<TEntity, TId>(TEntity entity, EntityState requestedState) where TEntity : Entity<TId>
         {
             EntityEntry<TEntity> entityEntry = Entry(entity);
             if (entityEntry.State != (Microsoft.EntityFrameworkCore.EntityState)requestedState)

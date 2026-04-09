@@ -76,7 +76,7 @@ public static class MiniMapper
         }
 
         var toType = to.GetType();
-        var isEntityMapping = typeof(Entity).IsAssignableFrom(toType);
+        var isEntityMapping = typeof(Entity<int>).IsAssignableFrom(toType);
         var toProps = GetFastPropertiesFor(toType).ToArray();
 
         foreach (var toProp in toProps)

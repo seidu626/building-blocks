@@ -52,7 +52,7 @@ public class IdentityService : IIdentityService
     public IList<Claim> GetUserClaims() =>
         _contextAccessor.HttpContext?.User.Claims.ToList() ?? new List<Claim>();
 
-    public string? GetSpecificClaim(string claimType, IList<Claim>? claims = null) =>
+    public string GetSpecificClaim(string claimType, IList<Claim>? claims = null) =>
         claims?.FirstOrDefault(claim => claim.Type == claimType)?.Value ??
         _contextAccessor.HttpContext?.User.Claims.FirstOrDefault(claim => claim.Type == claimType)?.Value;
 
@@ -62,8 +62,7 @@ public class IdentityService : IIdentityService
         return user?.Sub;
     }
 
-    public async ValueTask<string?>
-        GetUsernameAsync(CancellationToken cancellationToken, IList<Claim>? claims = null) =>
+    public async ValueTask<string> GetUsernameAsync(CancellationToken cancellationToken, IList<Claim>? claims = null) =>
         GetSpecificClaim("preferred_username", claims) ??
         (await GetUserInfoAsync(cancellationToken))?.PreferredUsername;
 
@@ -107,6 +106,58 @@ public class IdentityService : IIdentityService
             await _cacheProvider.SetAsync(token, user, cacheOptions, cancellationToken);
 
             return user;
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogError(ex, "JSON error during user info retrieval: {Message}", ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error during user info retrieval: {Message}", ex.Message);
+        }
+
+        return null;
+    }
+
+    public async ValueTask<string?> GetUserInfoStringAsync(CancellationToken cancellationToken,
+        HttpContext? httpContext = null)
+    {
+        try
+        {
+            var token = await GetAccessTokenAsync(cancellationToken, httpContext);
+            if (string.IsNullOrEmpty(token))
+            {
+                _logger.LogInformation("Token is null");
+                return null;
+            }
+
+            var cachedUser = await _cacheProvider.GetAsync<string>(token, cancellationToken);
+            if (cachedUser != null) return cachedUser;
+
+            var disco = await _discoveryCache.GetAsync();
+            using var client = new HttpClient();
+            var userInfoResponse = await client.GetUserInfoAsync(new UserInfoRequest
+            {
+                Address = disco.UserInfoEndpoint,
+                Token = token
+            }, cancellationToken);
+
+            if (userInfoResponse.IsError || userInfoResponse.Raw == null)
+            {
+                _logger.LogError(userInfoResponse.Exception?.Demystify(),
+                    "Error fetching user info from {Endpoint}", disco.UserInfoEndpoint);
+                return null;
+            }
+
+            if (userInfoResponse.Raw == null) return null;
+
+            var cacheOptions = new DistributedCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(60)
+            };
+            await _cacheProvider.SetAsync(token, userInfoResponse.Raw, cacheOptions, cancellationToken);
+
+            return userInfoResponse.Raw;
         }
         catch (JsonException ex)
         {

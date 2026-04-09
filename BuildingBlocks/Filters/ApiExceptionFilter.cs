@@ -13,7 +13,7 @@ namespace BuildingBlocks.Filters;
 
 public class ApiExceptionFilter : ExceptionFilterAttribute
 {
-  public virtual void OnException(ExceptionContext context)
+  public override void OnException(ExceptionContext context)
   {
     ApiError apiError;
     if (context.Exception is ApiException)

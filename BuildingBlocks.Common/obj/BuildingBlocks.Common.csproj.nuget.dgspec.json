@@ -1,30 +1,30 @@
 {
   "format": 1,
   "restore": {
-    "/home/xper626/Documents/repositories/building-blocks/BuildingBlocks.Common/BuildingBlocks.Common.csproj": {}
+    "/home/xper626/Documents/repositories/Duende.IdentityServer.Admin/building-blocks/BuildingBlocks.Common/BuildingBlocks.Common.csproj": {}
   },
   "projects": {
-    "/home/xper626/Documents/repositories/building-blocks/BuildingBlocks.Common/BuildingBlocks.Common.csproj": {
-      "version": "1.0.0",
+    "/home/xper626/Documents/repositories/Duende.IdentityServer.Admin/building-blocks/BuildingBlocks.Common/BuildingBlocks.Common.csproj": {
+      "version": "2.3.0",
       "restore": {
-        "projectUniqueName": "/home/xper626/Documents/repositories/building-blocks/BuildingBlocks.Common/BuildingBlocks.Common.csproj",
+        "projectUniqueName": "/home/xper626/Documents/repositories/Duende.IdentityServer.Admin/building-blocks/BuildingBlocks.Common/BuildingBlocks.Common.csproj",
         "projectName": "BuildingBlocks.Common",
-        "projectPath": "/home/xper626/Documents/repositories/building-blocks/BuildingBlocks.Common/BuildingBlocks.Common.csproj",
+        "projectPath": "/home/xper626/Documents/repositories/Duende.IdentityServer.Admin/building-blocks/BuildingBlocks.Common/BuildingBlocks.Common.csproj",
         "packagesPath": "/home/xper626/.nuget/packages/",
-        "outputPath": "/home/xper626/Documents/repositories/building-blocks/BuildingBlocks.Common/obj/",
+        "outputPath": "/home/xper626/Documents/repositories/Duende.IdentityServer.Admin/building-blocks/BuildingBlocks.Common/obj/",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "/home/xper626/.nuget/NuGet/NuGet.Config"
         ],
         "originalTargetFrameworks": [
-          "net8.0"
+          "net9.0"
         ],
         "sources": {
           "https://api.nuget.org/v3/index.json": {}
         },
         "frameworks": {
-          "net8.0": {
-            "targetAlias": "net8.0",
+          "net9.0": {
+            "targetAlias": "net9.0",
             "projectReferences": {}
           }
         },
@@ -37,15 +37,16 @@
           "enableAudit": "true",
           "auditLevel": "low",
           "auditMode": "direct"
-        }
+        },
+        "SdkAnalysisLevel": "9.0.300"
       },
       "frameworks": {
-        "net8.0": {
-          "targetAlias": "net8.0",
+        "net9.0": {
+          "targetAlias": "net9.0",
           "dependencies": {
             "Microsoft.Extensions.Logging": {
               "target": "Package",
-              "version": "[8.0.1, )"
+              "version": "[9.0.10, )"
             }
           },
           "imports": [
@@ -64,7 +65,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "/home/xper626/.dotnet/sdk/8.0.401/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "/home/xper626/.dotnet/sdk/9.0.303/PortableRuntimeIdentifierGraph.json"
         }
       }
     }

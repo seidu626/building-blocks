@@ -2,7 +2,7 @@
 
 namespace BuildingBlocks.Caching
 {
-    public static class EntityCacheDefaults<TEntity> where TEntity : Entity
+    public static class EntityCacheDefaults<TEntity, TId> where TEntity : Entity<TId>
     {
         public static string EntityTypeName => typeof(TEntity).Name.ToLowerInvariant();
 

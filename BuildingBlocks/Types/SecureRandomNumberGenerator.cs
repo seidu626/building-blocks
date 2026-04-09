@@ -18,7 +18,7 @@ public partial class SecureRandomNumberGenerator : RandomNumberGenerator
 
     public SecureRandomNumberGenerator()
     {
-        _rng = new RNGCryptoServiceProvider();
+        _rng = RandomNumberGenerator.Create();
     }
 
     #endregion

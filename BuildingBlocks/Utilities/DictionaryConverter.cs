@@ -48,10 +48,11 @@ public class DictionaryConvertException : Exception
         Problems = problems;
     }
 
-    public DictionaryConvertException(SerializationInfo info, StreamingContext context)
-        : base(info, context)
-    {
-    }
+    // Obsolete serialization constructor removed - formatter-based serialization is obsolete
+    // public DictionaryConvertException(SerializationInfo info, StreamingContext context)
+    //     : base(info, context)
+    // {
+    // }
 
     public ICollection<ConvertProblem> Problems { get; private set; }
 

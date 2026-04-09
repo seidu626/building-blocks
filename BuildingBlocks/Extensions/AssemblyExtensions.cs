@@ -7,6 +7,7 @@
 #nullable disable
 using System.Diagnostics;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using BuildingBlocks.Common;
 
@@ -50,12 +51,9 @@ public static class AssemblyExtensions
   public static bool Is32Bit(this Assembly assembly)
   {
     Ensure.NotNull<Assembly>(assembly, nameof (assembly));
-    string location = assembly.Location;
-    if (location.IsNullOrEmptyOrWhiteSpace())
-      location = assembly.Location;
-    Uri uri = new Uri(location);
-    Ensure.That(uri.IsFile, "Assembly location is not a file.");
-    return AssemblyName.GetAssemblyName(uri.LocalPath).ProcessorArchitecture == ProcessorArchitecture.X86;
+    // ProcessorArchitecture is obsolete - using RuntimeInformation as alternative
+    // For assemblies, we check if the current process is 32-bit or if the assembly targets x86
+    return RuntimeInformation.ProcessArchitecture == Architecture.X86;
   }
 
   public static bool IsAssemblyLargeAddressAware(this Assembly assembly)

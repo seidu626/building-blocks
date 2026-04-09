@@ -1,0 +1,53 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v8.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v8.0": {
+      "TimeoutWeaver.Fody/1.0.0": {
+        "dependencies": {
+          "FodyHelpers": "6.8.2"
+        },
+        "runtime": {
+          "TimeoutWeaver.Fody.dll": {}
+        }
+      },
+      "FodyHelpers/6.8.2": {
+        "runtime": {
+          "lib/netstandard2.0/FodyHelpers.dll": {
+            "assemblyVersion": "6.8.2.0",
+            "fileVersion": "6.8.2.0"
+          },
+          "lib/netstandard2.0/Mono.Cecil.Pdb.dll": {
+            "assemblyVersion": "0.11.5.0",
+            "fileVersion": "0.11.5.0"
+          },
+          "lib/netstandard2.0/Mono.Cecil.Rocks.dll": {
+            "assemblyVersion": "0.11.5.0",
+            "fileVersion": "0.11.5.0"
+          },
+          "lib/netstandard2.0/Mono.Cecil.dll": {
+            "assemblyVersion": "0.11.5.0",
+            "fileVersion": "0.11.5.0"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "TimeoutWeaver.Fody/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "FodyHelpers/6.8.2": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-WItt96EFCARpbWuVEmjE7RKFdMNvRyfdFM4Ckp6h85yA8iEJ4z3jDs4hhTDQckgwqOMf62laXekcFs2h7dHZjQ==",
+      "path": "fodyhelpers/6.8.2",
+      "hashPath": "fodyhelpers.6.8.2.nupkg.sha512"
+    }
+  }
+}

@@ -10,11 +10,11 @@ using System.Threading.Tasks;
 
 namespace BuildingBlocks.Persistence.Utilities
 {
-    public sealed class FastPager<T> where T : Entity, new()
+    public sealed class FastPager<T, TId> where T : Entity<TId>, new()
     {
         private readonly IQueryable<T> _query;
         private readonly int _pageSize;
-        private int? _maxId;
+        private TId? _maxId;
         private int? _currentPage;
 
         public FastPager(IQueryable<T> query, int pageSize = 1000)
@@ -27,11 +27,11 @@ namespace BuildingBlocks.Persistence.Utilities
 
         public void Reset()
         {
-            _maxId = null;
+            _maxId = default;
             _currentPage = null;
         }
 
-        public int? MaxId => _maxId;
+        public TId? MaxId => _maxId;
 
         public int? CurrentPage => _currentPage;
 
@@ -42,23 +42,23 @@ namespace BuildingBlocks.Persistence.Utilities
 
         public bool ReadNextPage<TShape>(
             Expression<Func<T, TShape>> shaper,
-            Func<TShape, int> idSelector,
+            Func<TShape, TId> idSelector,
             out IList<TShape> page)
         {
             Guard.AgainstNull(shaper, nameof(shaper));
             page = null;
 
-            if (!_maxId.HasValue)
+            if (_maxId == null)
             {
-                _maxId = int.MaxValue;
+                _maxId = default;
                 _currentPage = 0;
             }
 
-            if (_maxId.Value <= 1)
+            if (_maxId.Equals(default(TId)))
                 return false;
 
             page = _query
-                .Where(x => x.Id < _maxId.Value)
+                .Where(x => !x.Id.Equals(_maxId))
                 .OrderByDescending(x => x.Id)
                 .Take(_pageSize)
                 .Select(shaper)
@@ -66,7 +66,7 @@ namespace BuildingBlocks.Persistence.Utilities
 
             if (page.Count == 0)
             {
-                _maxId = -1;
+                _maxId = default;
                 page = null;
                 return false;
             }
@@ -84,21 +84,21 @@ namespace BuildingBlocks.Persistence.Utilities
 
         public async Task<IList<TShape>> ReadNextPageAsync<TShape>(
             Expression<Func<T, TShape>> shaper,
-            Func<TShape, int> idSelector)
+            Func<TShape, TId> idSelector)
         {
             Guard.AgainstNull(shaper, nameof(shaper));
 
-            if (!_maxId.HasValue)
+            if (_maxId == null)
             {
-                _maxId = int.MaxValue;
+                _maxId = default;
                 _currentPage = 0;
             }
 
-            if (_maxId.Value <= 1)
+            if (_maxId.Equals(default(TId)))
                 return null;
 
             var listAsync = await _query
-                .Where(x => x.Id < _maxId.Value)
+                .Where(x => !x.Id.Equals(_maxId))
                 .OrderByDescending(x => x.Id)
                 .Take(_pageSize)
                 .Select(shaper)
@@ -106,7 +106,7 @@ namespace BuildingBlocks.Persistence.Utilities
 
             if (listAsync.Count == 0)
             {
-                _maxId = -1;
+                _maxId = default;
                 return null;
             }
 

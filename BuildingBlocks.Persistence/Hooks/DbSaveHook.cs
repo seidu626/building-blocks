@@ -10,38 +10,38 @@ using System;
 #nullable disable
 namespace BuildingBlocks.Persistence.Hooks
 {
-  public abstract class DbSaveHook<TContext, TEntity> : IDbSaveHook<TContext>
+  public abstract class DbSaveHook<TContext, TEntity, TId> : IDbSaveHook<TContext, TId>
     where TContext : DbContext
     where TEntity : class
   {
-    public virtual void OnBeforeSave(IHookedEntity<TContext> entry)
+    public virtual void OnBeforeSave(IHookedEntity<TContext, TId> entry)
     {
       TEntity entity = entry.Entity as TEntity;
       switch (entry.InitialState)
       {
         case EntityState.Deleted:
-          this.OnDeleting(entity, entry);
+          OnDeleting(entity, entry);
           break;
         case EntityState.Modified:
-          this.OnUpdating(entity, entry);
+          OnUpdating(entity, entry);
           break;
         case EntityState.Added:
-          this.OnInserting(entity, entry);
+          OnInserting(entity, entry);
           break;
       }
     }
 
-    protected virtual void OnInserting(TEntity entity, IHookedEntity<TContext> entry)
+    protected virtual void OnInserting(TEntity entity, IHookedEntity<TContext, TId> entry)
     {
       throw new NotImplementedException();
     }
 
-    protected virtual void OnUpdating(TEntity entity, IHookedEntity<TContext> entry)
+    protected virtual void OnUpdating(TEntity entity, IHookedEntity<TContext, TId> entry)
     {
       throw new NotImplementedException();
     }
 
-    protected virtual void OnDeleting(TEntity entity, IHookedEntity<TContext> entry)
+    protected virtual void OnDeleting(TEntity entity, IHookedEntity<TContext, TId> entry)
     {
       throw new NotImplementedException();
     }
@@ -50,34 +50,34 @@ namespace BuildingBlocks.Persistence.Hooks
     {
     }
 
-    public virtual void OnAfterSave(IHookedEntity<TContext> entry)
+    public virtual void OnAfterSave(IHookedEntity<TContext, TId> entry)
     {
       TEntity entity = entry.Entity as TEntity;
       switch (entry.InitialState)
       {
         case EntityState.Deleted:
-          this.OnDeleted(entity, entry);
+          OnDeleted(entity, entry);
           break;
         case EntityState.Modified:
-          this.OnUpdated(entity, entry);
+          OnUpdated(entity, entry);
           break;
         case EntityState.Added:
-          this.OnInserted(entity, entry);
+          OnInserted(entity, entry);
           break;
       }
     }
 
-    protected virtual void OnInserted(TEntity entity, IHookedEntity<TContext> entry)
+    protected virtual void OnInserted(TEntity entity, IHookedEntity<TContext, TId> entry)
     {
       throw new NotImplementedException();
     }
 
-    protected virtual void OnUpdated(TEntity entity, IHookedEntity<TContext> entry)
+    protected virtual void OnUpdated(TEntity entity, IHookedEntity<TContext, TId> entry)
     {
       throw new NotImplementedException();
     }
 
-    protected virtual void OnDeleted(TEntity entity, IHookedEntity<TContext> entry)
+    protected virtual void OnDeleted(TEntity entity, IHookedEntity<TContext, TId> entry)
     {
       throw new NotImplementedException();
     }

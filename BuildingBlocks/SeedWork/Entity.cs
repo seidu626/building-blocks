@@ -1,14 +1,15 @@
-﻿using Mediator;
+﻿using BuildingBlocks.Extensions;
+using Mediator;
 
 namespace BuildingBlocks.SeedWork
 {
-    public abstract class Entity
+    public abstract class Entity<TId>
     {
         private int? _requestedHashCode;
-        private int _id;
+        private TId _id;
         private List<INotification>? _domainEvents;
 
-        public virtual int Id
+        public virtual TId Id
         {
             get => _id;
             set => _id = value;
@@ -17,7 +18,7 @@ namespace BuildingBlocks.SeedWork
         public IReadOnlyCollection<INotification>? DomainEvents =>
             _domainEvents?.AsReadOnly();
 
-        public virtual bool IsTransient() => Id == 0;
+        public virtual bool IsTransient() => Id.IsDefault();
 
         public void AddDomainEvent(INotification eventItem)
         {
@@ -42,11 +43,11 @@ namespace BuildingBlocks.SeedWork
             ClearDomainEvents();
         }
 
-        public virtual bool IsTransientRecord() => this.Id == 0;
+        public virtual bool IsTransientRecord() => this.Id.IsDefault();
 
         public override bool Equals(object? obj)
         {
-            if (obj == null || obj is not Entity other)
+            if (obj == null || obj is not Entity<TId> other)
                 return false;
 
             if (ReferenceEquals(this, obj))
@@ -55,7 +56,7 @@ namespace BuildingBlocks.SeedWork
             if (GetType() != obj.GetType())
                 return false;
 
-            return !IsTransient() && !other.IsTransient() && Id == other.Id;
+            return !IsTransient() && !other.IsTransient() && Id != null && Id.Equals(other.Id);
         }
 
         public override int GetHashCode()
@@ -67,10 +68,10 @@ namespace BuildingBlocks.SeedWork
             return _requestedHashCode.Value;
         }
 
-        public static bool operator ==(Entity? left, Entity? right) =>
+        public static bool operator ==(Entity<TId>? left, Entity<TId>? right) =>
             Equals(left, right);
 
-        public static bool operator !=(Entity? left, Entity? right) =>
+        public static bool operator !=(Entity<TId>? left, Entity<TId>? right) =>
             !(left == right);
 
         public Type GetUnproxiedType()

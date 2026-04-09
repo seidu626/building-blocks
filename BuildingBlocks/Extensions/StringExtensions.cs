@@ -1012,7 +1012,8 @@ public static class StringExtensions
 
     public static string Hash(this string input)
     {
-        var hash = new SHA1Managed().ComputeHash(Encoding.UTF8.GetBytes(input));
+        using var sha1 = SHA1.Create();
+        var hash = sha1.ComputeHash(Encoding.UTF8.GetBytes(input));
         return string.Concat(hash.Select(b => b.ToString("x2")));
     }
 

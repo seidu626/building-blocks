@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace BuildingBlocks.Infrastructure;
 
@@ -90,22 +91,18 @@ public class Engine : IEngine
     /// <param name="typeFinder">Type finder</param>
     protected virtual void AddAutoMapper(IServiceCollection services, ITypeFinder typeFinder)
     {
-        //find mapper configurations provided by other assemblies
-        var mapperConfigurations = typeFinder.FindClassesOfType<IOrderedMapperProfile>();
-
-        //create and sort instances of mapper configurations
-        var instances = mapperConfigurations
-            .Select(mapperConfiguration => (IOrderedMapperProfile)Activator.CreateInstance(mapperConfiguration))
-            .OrderBy(mapperConfiguration => mapperConfiguration.Order);
-
-        //create AutoMapper configuration
-        var config = new MapperConfiguration(cfg =>
+        // Find all Profile types
+        var profileTypes = typeFinder.FindClassesOfType<Profile>();
+        var profiles = profileTypes.Select(t => (Profile)Activator.CreateInstance(t)).ToList();
+        // Create AutoMapper configuration
+        var loggerFactory = LoggerFactory.Create(builder => { });
+        var config = new AutoMapper.MapperConfiguration(cfg =>
         {
-            foreach (var instance in instances)
+            foreach (var profile in profiles)
             {
-                cfg.AddProfile(instance.GetType());
+                cfg.AddProfile(profile);
             }
-        });
+        }, loggerFactory);
 
         //register
         AutoMapperConfiguration.Init(config);
@@ -179,7 +176,7 @@ public class Engine : IEngine
 
         //configure request pipeline
         foreach (var instance in instances)
-            instance.Configure(application);
+            instance?.Configure(application);
     }
 
     /// <summary>
