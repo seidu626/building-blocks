@@ -33,32 +33,6 @@ public class LdapUserResourceOwnerPasswordValidator<TUser> : IResourceOwnerPassw
     {
         try
         {
-            var userLookupResult = await _users.FindByUsernameAsync(context.UserName);
-            if (userLookupResult.IsFailure)
-            {
-                _logger.LogWarning("Invalid credentials for user {Username}. Error: {Error}", context.UserName,
-                    userLookupResult.Error?.FriendlyMessage);
-                context.Result = new GrantValidationResult(TokenRequestErrors.InvalidGrant, "Invalid credentials.");
-                return;
-            }
-
-            if (userLookupResult.Value == null)
-            {
-                context.Result = new GrantValidationResult(TokenRequestErrors.InvalidGrant,
-                    "Invalid credentials.");
-                return;
-            }
-
-            var preAuthAccountStateError = GetLdapAccountStateError(userLookupResult.Value);
-            if (preAuthAccountStateError != null)
-            {
-                _logger.LogWarning("User {Username} is not allowed to authenticate. Error: {Error}", context.UserName,
-                    preAuthAccountStateError.FriendlyMessage);
-                context.Result = new GrantValidationResult(TokenRequestErrors.InvalidGrant,
-                    preAuthAccountStateError.FriendlyMessage);
-                return;
-            }
-
             // Validate the user credentials asynchronously.
             Result<TUser, Error> result = await _users.ValidateCredentialsAsync(context.UserName, context.Password, IdentifierType.Username);
 

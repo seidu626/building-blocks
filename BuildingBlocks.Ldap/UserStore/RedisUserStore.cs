@@ -1,4 +1,5 @@
-﻿using System.Collections.Concurrent;
+﻿using System;
+using System.Collections.Concurrent;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using BuildingBlocks.Common;
@@ -24,13 +25,31 @@ namespace BuildingBlocks.Ldap.UserStore
         private readonly ILogger<RedisUserStore<TUser>> _logger;
         private readonly IConnectionMultiplexer _redis;
         private readonly TimeSpan _dataExpireIn;
+        private readonly TimeSpan _fallbackCacheTtl;
+        private readonly TimeSpan _fallbackCacheSweepInterval = TimeSpan.FromMinutes(2);
         private readonly JsonSerializerSettings _jsonSettings;
         private readonly AsyncRetryPolicy _retryPolicy;
         private readonly AsyncFallbackPolicy _fallbackPolicy;
         private readonly AsyncCircuitBreakerPolicy _circuitBreakerPolicy;
 
         // Fallback in-memory storage in case Redis fails
-        private readonly ConcurrentDictionary<string, TUser> _fallbackCache = new ConcurrentDictionary<string, TUser>();
+        private readonly ConcurrentDictionary<string, CachedDirectoryUser> _fallbackCache =
+            new ConcurrentDictionary<string, CachedDirectoryUser>();
+
+        private DateTimeOffset _nextFallbackCacheSweepUtc = DateTimeOffset.UtcNow;
+        private readonly object _fallbackCacheSweepLock = new();
+
+        private sealed class CachedDirectoryUser
+        {
+            public TUser User { get; }
+            public DateTimeOffset CachedAtUtc { get; }
+
+            public CachedDirectoryUser(TUser user, DateTimeOffset cachedAtUtc)
+            {
+                User = user;
+                CachedAtUtc = cachedAtUtc;
+            }
+        }
 
         public RedisUserStore(ILdapService<TUser> ldapService, ExtensionConfig config,
             ILogger<RedisUserStore<TUser>> logger)
@@ -80,6 +99,10 @@ namespace BuildingBlocks.Ldap.UserStore
                         _logger.LogWarning("Circuit breaker triggered due to Redis failures.");
                     },
                     () => { _logger.LogInformation("Circuit breaker reset."); });
+
+            _fallbackCacheTtl = _dataExpireIn > TimeSpan.Zero
+                ? _dataExpireIn
+                : TimeSpan.FromMinutes(5);
         }
 
         private static IConnectionMultiplexer InitializeRedis(string connectionString)
@@ -178,9 +201,10 @@ namespace BuildingBlocks.Ldap.UserStore
             Func<Task<Result<TUser, Error>>> fetchUser)
         {
             var redisKey = GetRedisKey(keyType, key);
+            PurgeExpiredFallbackEntries();
 
             // Attempt to get the user from Redis
-            var cachedUser = await _retryPolicy.ExecuteAsync(async () => await GetUserFromRedisAsync(redisKey));
+            var cachedUser = await GetCachedUserFromRedisAsync(redisKey);
 
             if (cachedUser != null)
             {
@@ -188,7 +212,7 @@ namespace BuildingBlocks.Ldap.UserStore
             }
 
             // If Redis fails or no user is found, check fallback cache
-            if (_fallbackCache.TryGetValue(redisKey, out var fallbackUser))
+            if (TryGetFallbackUser(redisKey, out var fallbackUser))
             {
                 return fallbackUser;
             }
@@ -201,8 +225,7 @@ namespace BuildingBlocks.Ldap.UserStore
             }
 
             // Save to both Redis and in-memory fallback cache
-            await SetRedisDataAsync(fetchResult.Value);
-            _fallbackCache[redisKey] = fetchResult.Value;
+            await CacheLookupResultAsync(fetchResult.Value, redisKey);
 
             return fetchResult;
         }
@@ -217,8 +240,7 @@ namespace BuildingBlocks.Ldap.UserStore
                 {
                     var result = await action();
                     if (!result.IsSuccess) return result;
-                    await SetRedisDataAsync(result.Value);
-                    _fallbackCache[GetRedisKey(keyType, key)] = result.Value;
+                    await CacheLookupResultAsync(result.Value, GetRedisKey(keyType, key));
 
                     return result;
                 });
@@ -227,6 +249,112 @@ namespace BuildingBlocks.Ldap.UserStore
             {
                 _logger.LogError(ex, "An error occurred during the Redis operation.");
                 return Result.Failure<TUser, Error>(new Error("INTERNAL_SERVER_ERROR", ex.Message, ex));
+            }
+        }
+
+        private async Task<TUser?> GetCachedUserFromRedisAsync(string redisKey)
+        {
+            try
+            {
+                return await _retryPolicy.ExecuteAsync(async () => await GetUserFromRedisAsync(redisKey));
+            }
+            catch (RedisTimeoutException ex)
+            {
+                _logger.LogWarning(ex, "Redis timeout while reading user cache key {RedisKey}", redisKey);
+            }
+            catch (RedisException ex)
+            {
+                _logger.LogWarning(ex, "Redis error while reading user cache key {RedisKey}", redisKey);
+            }
+
+            return default;
+        }
+
+        private async Task CacheLookupResultAsync(TUser user, string redisKey)
+        {
+            if (user == null)
+            {
+                return;
+            }
+
+            SetFallbackCache(redisKey, user);
+            await TrySetRedisDataAsync(user);
+        }
+
+        private void SetFallbackCache(string redisKey, TUser user)
+        {
+            _fallbackCache[redisKey] = new CachedDirectoryUser(user, DateTimeOffset.UtcNow);
+        }
+
+        private bool TryGetFallbackUser(string redisKey, out TUser? user)
+        {
+            _fallbackCache.TryGetValue(redisKey, out var fallbackEntry);
+
+            if (fallbackEntry != null && !IsFallbackEntryExpired(fallbackEntry))
+            {
+                user = fallbackEntry.User;
+                return true;
+            }
+
+            if (fallbackEntry != null)
+            {
+                _fallbackCache.TryRemove(redisKey, out _);
+            }
+
+            user = default;
+            return false;
+        }
+
+        private bool IsFallbackEntryExpired(CachedDirectoryUser cachedDirectoryUser)
+        {
+            return DateTimeOffset.UtcNow - cachedDirectoryUser.CachedAtUtc > _fallbackCacheTtl;
+        }
+
+        private void PurgeExpiredFallbackEntries()
+        {
+            var now = DateTimeOffset.UtcNow;
+            if (now < _nextFallbackCacheSweepUtc)
+            {
+                return;
+            }
+
+            lock (_fallbackCacheSweepLock)
+            {
+                if (now < _nextFallbackCacheSweepUtc)
+                {
+                    return;
+                }
+
+                foreach (var key in _fallbackCache.Keys)
+                {
+                    if (_fallbackCache.TryGetValue(key, out var entry)
+                        && IsFallbackEntryExpired(entry))
+                    {
+                        _fallbackCache.TryRemove(key, out _);
+                    }
+                }
+
+                _nextFallbackCacheSweepUtc = now + _fallbackCacheSweepInterval;
+            }
+        }
+
+        private async Task TrySetRedisDataAsync(TUser user)
+        {
+            try
+            {
+                await SetRedisDataAsync(user);
+            }
+            catch (RedisTimeoutException ex)
+            {
+                _logger.LogWarning(ex, "Redis timeout while writing user cache entry.");
+            }
+            catch (RedisException ex)
+            {
+                _logger.LogWarning(ex, "Redis error while writing user cache entry.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Unexpected error while writing user cache entry.");
             }
         }
 
