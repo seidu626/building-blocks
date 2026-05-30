@@ -199,19 +199,40 @@ namespace BuildingBlocks.Ldap
 
         public async Task<Result<TUser, Error>> FindUserByEmail(string? email, string? domain)
         {
-            return await GetUserByAttributeAsync("mail", email, domain);
+            return await GetUserByAttributeAsync("mail", email, domain, true);
         }
 
         public async Task<Result<TUser, Error>> FindUserByPhone(string? phone, string? domain)
         {
-            var formattedPhones = GetFormattedPhoneNumbers(phone);
-            foreach (var formattedPhone in formattedPhones)
+            var normalizedPhone = PhoneLookupHelper.NormalizePhoneToDigits(phone);
+            foreach (var formattedPhone in PhoneLookupHelper.GetPhoneLookupCandidates(phone))
             {
-                var result = await GetUserByAttributeAsync("mobile", formattedPhone, domain);
+                if (string.IsNullOrWhiteSpace(formattedPhone))
+                {
+                    continue;
+                }
+
+                var result = await GetUserByAttributeAsync("mobile", formattedPhone, domain, true);
                 if (result.IsSuccess)
                 {
                     return result; // Return the user if found
                 }
+            }
+
+            if (normalizedPhone == null)
+            {
+                return new Error("404", "User not found with the given phone number.");
+            }
+
+            var normalizedMatchResult = await FindUserByNormalizedPhoneAsync(normalizedPhone, domain);
+            if (normalizedMatchResult.IsSuccess)
+            {
+                return normalizedMatchResult;
+            }
+
+            if (normalizedMatchResult.Error.Code != "404")
+            {
+                return normalizedMatchResult.Error;
             }
 
             return new Error("404", "User not found with the given phone number.");
@@ -219,7 +240,7 @@ namespace BuildingBlocks.Ldap
 
         private async Task<Result<TUser, Error>> FindUserByUsernameAsync(string? username, string? domain)
         {
-            return await GetUserByAttributeAsync("sAMAccountName", username, domain);
+            return await GetUserByAttributeAsync("sAMAccountName", username, domain, true);
         }
 
         private async Task<Result<TUser, Error>> AuthenticateUser(string? username, string password, IdentifierType identifierType, string? domain)
@@ -266,43 +287,89 @@ namespace BuildingBlocks.Ldap
 
         #region Utils
 
-        private IEnumerable<string?> GetFormattedPhoneNumbers(string? phone)
+        private static string? GetPhoneAttributeValue(LdapEntry ldapEntry, string attributeName)
         {
-            var formattedPhones = new List<string?>();
-
-            // Add the original phone number
-            formattedPhones.Add(phone);
-
-            if (string.IsNullOrEmpty(phone))
+            try
             {
-                return formattedPhones;
+                return ldapEntry.Get(attributeName)?.StringValue;
             }
-
-            // Add the phone number with international code (e.g., +233)
-            if (phone.StartsWith("0"))
+            catch (KeyNotFoundException)
             {
-                formattedPhones.Add("233" + phone.Substring(1)); // Example: 0540618592 -> 233540618592
+                return null;
             }
+        }
 
-            // Add the local format if the phone number starts with the country code
-            if (phone.StartsWith("233"))
+        private async Task<Result<TUser, Error>> FindUserByNormalizedPhoneAsync(string normalizedPhone, string? domain)
+        {
+            var ldapConfig = _config.First();
+            var connection = await GetConnectionFromPoolAsync(ldapConfig);
+            var phoneAttributesToCheck = new[] { "mobile", "telephoneNumber", "phone" };
+
+            try
             {
-                formattedPhones.Add("0" + phone.Substring(3)); // Example: 233540618592 -> 0540618592
-            }
+                await connection.BindAsync(ldapConfig.BindDn, ldapConfig.BindCredentials);
 
-            return formattedPhones;
+                foreach (var phoneAttribute in phoneAttributesToCheck)
+                {
+                    var searchResult = await PerformLdapSearch(phoneAttribute, "*", ldapConfig, connection, true);
+                    if (searchResult.IsFailure)
+                    {
+                        if (searchResult.Error.Code != "404")
+                        {
+                            return searchResult.Error;
+                        }
+
+                        continue;
+                    }
+
+                    while (await searchResult.Value.Results.HasMoreAsync())
+                    {
+                        var ldapEntry = await searchResult.Value.Results.NextAsync();
+
+                        if (!PhoneLookupHelper.IsNormalizedPhoneMatch(
+                                GetPhoneAttributeValue(ldapEntry, phoneAttribute), normalizedPhone) &&
+                            !PhoneLookupHelper.IsNormalizedPhoneMatch(
+                                GetPhoneAttributeValue(ldapEntry, "mobile"), normalizedPhone))
+                        {
+                            continue;
+                        }
+
+                        var managerEntry = await GetManagerEntry(ldapEntry, searchResult.Value.LdapConnection);
+                        return CreateUser(ldapEntry, managerEntry, domain ?? "local");
+                    }
+                }
+
+                return new Error("404", "User not found with the given phone number.");
+            }
+            catch (LdapException e)
+            {
+                var ex = e.Demystify();
+                _logger.LogError(ex, ex.LdapErrorMessage);
+                return new Error("500", ex.LdapErrorMessage, ex);
+            }
+            catch (Exception e)
+            {
+                var ex = e.Demystify();
+                _logger.LogError(ex, ex.Message);
+                return new Error("500", ex.Message, ex);
+            }
+            finally
+            {
+                ReturnConnectionToPool(ldapConfig, connection);
+            }
         }
 
         [Time]
         [Timeout(1200)]
-        private async Task<Result<TUser, Error>> GetUserByAttributeAsync(string attributeName, string? attributeValue, string? domain)
+        private async Task<Result<TUser, Error>> GetUserByAttributeAsync(string attributeName, string? attributeValue, string? domain,
+            bool includeAllAttributes = false)
         {
             var ldapConfig = _config.First();
             var connection = await GetConnectionFromPoolAsync(ldapConfig);
             try
             {
                 await connection.BindAsync(ldapConfig.BindDn, ldapConfig.BindCredentials);
-                var searchResult = await PerformLdapSearch(attributeName, attributeValue, ldapConfig, connection);
+                var searchResult = await PerformLdapSearch(attributeName, attributeValue, ldapConfig, connection, includeAllAttributes);
                 if (searchResult.IsFailure) return searchResult.Error;
 
                 var userEntry = await GetUserFromSearchResults(searchResult.Value);

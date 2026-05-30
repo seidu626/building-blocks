@@ -19,6 +19,7 @@ public class MockLdapService<TUser> : ILdapService<TUser> where TUser : IAppUser
     private readonly Dictionary<string, MockLdapUser> _usersByUsername = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, MockLdapUser> _usersByEmail = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, MockLdapUser> _usersByPhone = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, MockLdapUser> _usersByNormalizedPhone = new(StringComparer.Ordinal);
 
     public MockLdapService(LdapConfig config, ILogger<MockLdapService<TUser>> logger, IHostEnvironment environment)
     {
@@ -104,13 +105,18 @@ public class MockLdapService<TUser> : ILdapService<TUser> where TUser : IAppUser
                 if (!string.IsNullOrEmpty(user.Phone))
                 {
                     _usersByPhone[user.Phone] = user;
-                    // Also add formatted phone numbers
-                    var formattedPhones = GetFormattedPhoneNumbers(user.Phone);
-                    foreach (var formattedPhone in formattedPhones)
+
+                    var normalizedPhone = PhoneLookupHelper.NormalizePhoneToDigits(user.Phone);
+                    if (!string.IsNullOrEmpty(normalizedPhone))
                     {
-                        if (!string.IsNullOrEmpty(formattedPhone))
+                        _usersByNormalizedPhone[normalizedPhone] = user;
+
+                        foreach (var formattedPhone in PhoneLookupHelper.GetPhoneLookupCandidates(user.Phone))
                         {
-                            _usersByPhone[formattedPhone] = user;
+                            if (!string.IsNullOrWhiteSpace(formattedPhone))
+                            {
+                                _usersByPhone[formattedPhone] = user;
+                            }
                         }
                     }
                 }
@@ -216,16 +222,19 @@ public class MockLdapService<TUser> : ILdapService<TUser> where TUser : IAppUser
             return new Error("400", "Phone number is required.");
         }
 
-        var formattedPhones = GetFormattedPhoneNumbers(phone);
         MockLdapUser? user = null;
-        
-        foreach (var formattedPhone in formattedPhones)
+        foreach (var formattedPhone in PhoneLookupHelper.GetPhoneLookupCandidates(phone))
         {
             if (!string.IsNullOrEmpty(formattedPhone) && _usersByPhone.TryGetValue(formattedPhone, out var foundUser))
             {
                 user = foundUser;
                 break;
             }
+        }
+
+        if (user == null)
+        {
+            user = FindUserByPhoneNumber(phone);
         }
 
         if (user == null)
@@ -296,14 +305,20 @@ public class MockLdapService<TUser> : ILdapService<TUser> where TUser : IAppUser
 
     private MockLdapUser? FindUserByPhoneNumber(string phone)
     {
-        var formattedPhones = GetFormattedPhoneNumbers(phone);
-        foreach (var formattedPhone in formattedPhones)
+        var normalizedPhone = PhoneLookupHelper.NormalizePhoneToDigits(phone);
+        if (!string.IsNullOrEmpty(normalizedPhone) && _usersByNormalizedPhone.TryGetValue(normalizedPhone, out var normalizedMatch))
         {
-            if (!string.IsNullOrEmpty(formattedPhone) && _usersByPhone.TryGetValue(formattedPhone, out var user))
+            return normalizedMatch;
+        }
+
+        foreach (var user in _users)
+        {
+            if (PhoneLookupHelper.IsNormalizedPhoneMatch(user.Phone, normalizedPhone))
             {
                 return user;
             }
         }
+
         return null;
     }
 
@@ -433,34 +448,4 @@ public class MockLdapService<TUser> : ILdapService<TUser> where TUser : IAppUser
         return appUser;
     }
 
-    private IEnumerable<string?> GetFormattedPhoneNumbers(string? phone)
-    {
-        if (string.IsNullOrEmpty(phone))
-            yield break;
-
-        yield return phone;
-
-        // Add the phone number with international code (e.g., +233)
-        if (phone.StartsWith("0", StringComparison.Ordinal) && phone.Length > 1)
-        {
-            yield return "233" + phone.Substring(1);
-        }
-
-        // Add the local format if the phone number starts with the country code
-        if (phone.StartsWith("233", StringComparison.Ordinal) && phone.Length > 3)
-        {
-            yield return "0" + phone.Substring(3);
-        }
-
-        // Add with + prefix
-        if (!phone.StartsWith("+", StringComparison.Ordinal))
-        {
-            yield return "+" + phone;
-        }
-        else
-        {
-            yield return phone.Substring(1);
-        }
-    }
 }
-

@@ -27,6 +27,7 @@ public class ActiveDirectoryAppUser : IAppUser
     public string Division { get; set; } = string.Empty;
     public string Mobile { get; set; } = string.Empty;
     public string EmployeeType { get; set; } = string.Empty;
+    public long? UserAccountControl { get; set; }
     public long? LockoutTime { get; set; }
     public long? PwdLastSet { get; set; }
     public long? BadPwdCount { get; set; }
@@ -35,7 +36,13 @@ public class ActiveDirectoryAppUser : IAppUser
 
     public string[] LdapAttributes => Enum<ActiveDirectoryLdapAttributes>.Descriptions;
 
-    public bool IsActive => !IsAccountExpired() && !IsPasswordExpired() && !IsAccountLocked();
+    public bool IsActive => !IsAccountDisabled();
+
+    private bool IsAccountDisabled()
+    {
+        return UserAccountControl.HasValue &&
+               (UserAccountControl.Value & 0x0002) == 0x0002;
+    }
 
     public bool IsAccountLocked()
     {
@@ -151,6 +158,7 @@ public class ActiveDirectoryAppUser : IAppUser
             ProviderName = providerName;
             SubjectId = Username;
             ProviderSubjectId = Username;
+            UserAccountControl = ParseLong(SafeGetAttributeStringValue(ldapEntry, "userAccountControl"));
             LockoutTime = ParseLong(SafeGetAttributeStringValue(ldapEntry, ActiveDirectoryLdapAttributes.LockoutTime.ToDescriptionString()));
             PwdLastSet = ParseLong(SafeGetAttributeStringValue(ldapEntry, ActiveDirectoryLdapAttributes.PwdLastSet.ToDescriptionString()));
             BadPwdCount = ParseLong(SafeGetAttributeStringValue(ldapEntry, ActiveDirectoryLdapAttributes.BadPwdCount.ToDescriptionString()));
