@@ -1,9 +1,16 @@
 namespace BuildingBlocks.Ldap;
 
+using System.Text.RegularExpressions;
 using System.Text;
 
 internal static class PhoneLookupHelper
 {
+    private const int MaxSignificantDigits = 15;
+    private const int MinSignificantDigits = 7;
+    private const string ExtensionPattern = "(?:\\s*(?:ext|x|extension)\\s*\\d+\\s*)$";
+
+    private static readonly Regex ExtensionRegex = new(ExtensionPattern, RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
     public static IReadOnlyList<string> GetPhoneLookupCandidates(string? phone)
     {
         var candidates = new HashSet<string>(StringComparer.Ordinal);
@@ -12,7 +19,7 @@ internal static class PhoneLookupHelper
             return Array.Empty<string>();
         }
 
-        var trimmedPhone = phone.Trim();
+        var trimmedPhone = TrimPhoneForLookup(phone);
         if (!string.IsNullOrWhiteSpace(trimmedPhone))
         {
             candidates.Add(trimmedPhone);
@@ -49,6 +56,12 @@ internal static class PhoneLookupHelper
             return null;
         }
 
+        phone = TrimPhoneForLookup(phone);
+        if (string.IsNullOrWhiteSpace(phone))
+        {
+            return null;
+        }
+
         var builder = new StringBuilder();
         foreach (var character in phone)
         {
@@ -69,6 +82,46 @@ internal static class PhoneLookupHelper
         }
 
         var normalizedCandidate = NormalizePhoneToDigits(phone);
-        return !string.IsNullOrEmpty(normalizedCandidate) && string.Equals(normalizedCandidate, normalizedPhone, StringComparison.Ordinal);
+        if (string.IsNullOrWhiteSpace(normalizedCandidate))
+        {
+            return false;
+        }
+
+        if (string.Equals(normalizedCandidate, normalizedPhone, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        if (normalizedCandidate.Length < MinSignificantDigits || normalizedPhone.Length < MinSignificantDigits)
+        {
+            return false;
+        }
+
+        var maxSuffixLength = Math.Min(
+            Math.Min(normalizedCandidate.Length, normalizedPhone.Length),
+            MaxSignificantDigits);
+
+        for (var i = maxSuffixLength; i >= MinSignificantDigits; i--)
+        {
+            var candidateSuffix = normalizedCandidate.AsSpan(normalizedCandidate.Length - i);
+            var inputSuffix = normalizedPhone.AsSpan(normalizedPhone.Length - i);
+
+            if (candidateSuffix.SequenceEqual(inputSuffix))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static string? TrimPhoneForLookup(string? phone)
+    {
+        if (string.IsNullOrWhiteSpace(phone))
+        {
+            return phone;
+        }
+
+        return ExtensionRegex.Replace(phone.Trim(), string.Empty);
     }
 }

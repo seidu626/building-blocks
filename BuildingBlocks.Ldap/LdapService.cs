@@ -21,7 +21,15 @@ namespace BuildingBlocks.Ldap
         private readonly ILogger<LdapService<TUser>> _logger;
         private readonly ICollection<LdapConfig> _config;
         private readonly ConcurrentDictionary<string, ConcurrentBag<LdapConnection>> _connectionPools = new();
-        private readonly string[] _phoneAttributesToCheck = new[] { "mobile", "telephoneNumber", "phone" };
+        private readonly string[] _phoneAttributesToCheck = new[]
+        {
+            "mobile",
+            "telephoneNumber",
+            "phone",
+            "homePhone",
+            "otherMobile",
+            "pager"
+        };
         private readonly int _maxPoolSize; // Maximum connections in the pool
         private readonly AsyncRetryPolicy _retryPolicy;
         private readonly AsyncCircuitBreakerPolicy _circuitBreakerPolicy;
@@ -205,7 +213,7 @@ namespace BuildingBlocks.Ldap
 
         public async Task<Result<TUser, Error>> FindUserByPhone(string? phone, string? domain)
         {
-            return await FindUserByPhoneEntryAsync(phone, domain);
+            return await FindUserByPhoneAsync(phone, domain);
         }
 
         private async Task<Result<TUser, Error>> FindUserByUsernameAsync(string? username, string? domain)
@@ -327,6 +335,8 @@ namespace BuildingBlocks.Ldap
                 return new Error("400", "Phone number is required.");
             }
 
+            var checkedDns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
             foreach (var formattedPhone in PhoneLookupHelper.GetPhoneLookupCandidates(phone))
             {
                 if (string.IsNullOrWhiteSpace(formattedPhone))
@@ -376,6 +386,11 @@ namespace BuildingBlocks.Ldap
                 while (await searchResult.Value.Results.HasMoreAsync())
                 {
                     var ldapEntry = await searchResult.Value.Results.NextAsync();
+                    if (!checkedDns.Add(ldapEntry.Dn))
+                    {
+                        continue;
+                    }
+
                     if (DoesEntryMatchNormalizedPhone(ldapEntry, normalizedPhone))
                     {
                         return ldapEntry;
@@ -519,30 +534,44 @@ namespace BuildingBlocks.Ldap
         {
             var ldapConfig = _config.First(); // Simplified: Select the first LDAP config
             var connection = await GetConnectionFromPoolAsync(ldapConfig);
+            Result<LdapEntry, Error> userEntryResult;
 
             try
             {
-                var attribute = identifierType.GetLdapAttribute();
                 await connection.BindAsync(ldapConfig.BindDn, ldapConfig.BindCredentials);
-                // Perform authentication logic
-                var searchResult = await PerformLdapSearch(attribute, username, ldapConfig, connection);
-                if (searchResult.IsFailure) return searchResult.Error;
 
-                var userEntry = await GetUserFromSearchResults(searchResult.Value);
-                if (userEntry.IsFailure) return userEntry.Error;
-                if (userEntry.Value == default)
+                if (identifierType == IdentifierType.Phone)
                 {
-                    return new Error("500", "UserEntry is null");
+                    userEntryResult = await FindUserEntryByPhoneAsync(username, ldapConfig, connection);
+                }
+                else
+                {
+                    var attribute = identifierType.GetLdapAttribute();
+                    var searchResult = await PerformLdapSearch(attribute, username, ldapConfig, connection);
+                    if (searchResult.IsFailure) return searchResult.Error;
+
+                    userEntryResult = await GetUserFromSearchResults(searchResult.Value);
+                    if (userEntryResult.IsFailure) return userEntryResult.Error;
+                    if (userEntryResult.Value == default)
+                    {
+                        return new Error("500", "UserEntry is null");
+                    }
                 }
 
-                await connection.BindAsync(userEntry.Value.Dn, password);
+                if (userEntryResult.IsFailure) return userEntryResult.Error;
+                if (userEntryResult.Value == default)
+                {
+                    return new Error("404", "User not found in any LDAP.");
+                }
+
+                await connection.BindAsync(userEntryResult.Value.Dn, password);
                 if (!connection.Bound)
                 {
                     return new Error("404", "User not found in any LDAP.");
                 }
 
-                var managerEntry = await GetManagerEntry(userEntry.Value, connection);
-                var user = CreateUser(userEntry.Value, managerEntry, domain);
+                var managerEntry = await GetManagerEntry(userEntryResult.Value, connection);
+                var user = CreateUser(userEntryResult.Value, managerEntry, domain);
                 return user;
             }
             catch (LdapException e)

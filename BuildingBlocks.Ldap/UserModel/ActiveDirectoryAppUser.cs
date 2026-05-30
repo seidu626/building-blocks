@@ -34,20 +34,38 @@ public class ActiveDirectoryAppUser : IAppUser
     public long? AccountExpires { get; set; }
     public ICollection<Claim> Claims { get; set; } = new List<Claim>();
 
+    private const long DisabledUserAccountControlFlag = 0x0002;
+    private const int DefaultLockoutMinutes = 30;
+
     public string[] LdapAttributes => Enum<ActiveDirectoryLdapAttributes>.Descriptions;
 
     public bool IsActive => !IsAccountDisabled();
 
+    public bool IsSuspended => IsAccountLocked();
+
+    public bool IsAllowedForLogin => IsActive && !IsSuspended;
+
     private bool IsAccountDisabled()
     {
         return UserAccountControl.HasValue &&
-               (UserAccountControl.Value & 0x0002) == 0x0002;
+               (UserAccountControl.Value & DisabledUserAccountControlFlag) == DisabledUserAccountControlFlag;
     }
 
     public bool IsAccountLocked()
     {
-        return LockoutTime.HasValue && LockoutTime.GetValueOrDefault() != 0L &&
-               DateTime.FromFileTime(LockoutTime.Value).AddMinutes(30.0) >= DateTime.UtcNow;
+        if (!LockoutTime.HasValue || LockoutTime.GetValueOrDefault() == 0L)
+        {
+            return false;
+        }
+
+        try
+        {
+            return DateTime.FromFileTime(LockoutTime.Value).AddMinutes(DefaultLockoutMinutes) >= DateTime.UtcNow;
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            return false;
+        }
     }
 
     public bool IsPasswordExpired(int maxPasswordAgeDays = 30)

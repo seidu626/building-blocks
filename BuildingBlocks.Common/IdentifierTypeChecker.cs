@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Text.RegularExpressions;
 
 namespace BuildingBlocks.Common;
@@ -35,8 +36,9 @@ public static class IdentifierTypeChecker
         // Regular expression for email validation
         var emailRegex = new Regex(@"^[^\s@]+@[^\s@]+\.[^\s@]+$");
 
-        // Regular expression for phone number validation (supports international numbers)
-        var phoneRegex = new Regex(@"^\+?[0-9]{7,15}$");
+        // Remove common dialling extensions and punctuation, keep only digits for phone detection.
+        var normalized = GetNormalizedDigits(input);
+        var isPhoneLike = IsLikelyPhoneNumber(input);
 
         // Check if the input is an email
         if (emailRegex.IsMatch(input))
@@ -45,7 +47,7 @@ public static class IdentifierTypeChecker
         }
 
         // Check if the input is a phone number
-        if (phoneRegex.IsMatch(input))
+        if (isPhoneLike && normalized.Length >= 7 && normalized.Length <= 20)
         {
             return IdentifierType.Phone;
         }
@@ -53,4 +55,33 @@ public static class IdentifierTypeChecker
         // If it's neither an email nor a phone number, consider it as a username
         return IdentifierType.Username;
     }
+
+    private static bool IsLikelyPhoneNumber(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return false;
+        }
+
+        var sanitized = Regex.Replace(input.Trim(), ExtensionPattern, string.Empty, RegexOptions.IgnoreCase);
+
+        return PhoneCharacterRegex.IsMatch(sanitized);
+    }
+
+    private static string GetNormalizedDigits(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return string.Empty;
+        }
+
+        var sanitized = Regex.Replace(input.Trim(), ExtensionPattern, string.Empty, RegexOptions.IgnoreCase);
+        var digitsOnly = new string(sanitized.Where(char.IsDigit).ToArray());
+
+        return digitsOnly;
+    }
+
+    private const string ExtensionPattern = "(?:\\s*(?:ext|x|extension)\\s*\\d+\\s*)$";
+    private const string PhoneCharacterPattern = @"^[\\+\\s()\\-./\\d]+$";
+    private static readonly Regex PhoneCharacterRegex = new(PhoneCharacterPattern, RegexOptions.Compiled);
 }
