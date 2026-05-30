@@ -20,7 +20,7 @@ public class LdapConnectionPool
     private readonly string _password;
     private readonly ILogger _logger;
 
-    public LdapConnectionPool(LdapConfig config, ILogger logger)
+    public LdapConnectionPool(LdapConfig config, ILogger<LdapConnectionPool> logger)
     {
         this._ldapHost = config.Url;
         this._ldapPort = config.FinalLdapConnectionPort;

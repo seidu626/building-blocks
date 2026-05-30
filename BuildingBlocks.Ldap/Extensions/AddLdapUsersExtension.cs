@@ -22,7 +22,10 @@ public static class AddLdapUsersExtension
         where TUserDetails : IAppUser, new()
     {
         LdapConfig ldapConfig = AddLdapUsersExtension.RegisterLdapConfigurations(builder, configuration);
-        builder.Services.AddSingleton<ILdapService<TUserDetails>, LdapService<TUserDetails>>();
+        if (ldapConfig.UseMockLdap)
+            builder.Services.AddSingleton<ILdapService<TUserDetails>, BuildingBlocks.Ldap.Services.MockLdapService<TUserDetails>>();
+        else
+            builder.Services.AddSingleton<ILdapService<TUserDetails>, LdapService<TUserDetails>>();
         if (ldapConfig.UserStore == UserStore.InMemory)
             builder.Services.AddSingleton<ILdapUserStore<TUserDetails>, InMemoryUserStore<TUserDetails>>();
         else
