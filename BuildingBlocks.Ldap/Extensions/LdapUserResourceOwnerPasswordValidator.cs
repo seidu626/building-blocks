@@ -1,6 +1,8 @@
 ﻿using System.Security.Claims;
 using BuildingBlocks.Common;
 using BuildingBlocks.Exceptions;
+using BuildingBlocks.Ldap;
+using BuildingBlocks.Ldap.UserModel;
 using BuildingBlocks.Ldap.UserStore;
 using CSharpFunctionalExtensions;
 using Duende.IdentityServer.Models;
@@ -31,11 +33,47 @@ public class LdapUserResourceOwnerPasswordValidator<TUser> : IResourceOwnerPassw
     {
         try
         {
+            var userLookupResult = await _users.FindByUsernameAsync(context.UserName);
+            if (userLookupResult.IsFailure)
+            {
+                _logger.LogWarning("Invalid credentials for user {Username}. Error: {Error}", context.UserName,
+                    userLookupResult.Error?.FriendlyMessage);
+                context.Result = new GrantValidationResult(TokenRequestErrors.InvalidGrant, "Invalid credentials.");
+                return;
+            }
+
+            if (userLookupResult.Value == null)
+            {
+                context.Result = new GrantValidationResult(TokenRequestErrors.InvalidGrant,
+                    "Invalid credentials.");
+                return;
+            }
+
+            var preAuthAccountStateError = GetLdapAccountStateError(userLookupResult.Value);
+            if (preAuthAccountStateError != null)
+            {
+                _logger.LogWarning("User {Username} is not allowed to authenticate. Error: {Error}", context.UserName,
+                    preAuthAccountStateError.FriendlyMessage);
+                context.Result = new GrantValidationResult(TokenRequestErrors.InvalidGrant,
+                    preAuthAccountStateError.FriendlyMessage);
+                return;
+            }
+
             // Validate the user credentials asynchronously.
             Result<TUser, Error> result = await _users.ValidateCredentialsAsync(context.UserName, context.Password, IdentifierType.Username);
 
             if (result.IsSuccess && result.Value != null)
             {
+                var accountStateError = GetLdapAccountStateError(result.Value);
+                if (accountStateError != null)
+                {
+                    _logger.LogWarning("User {Username} is not allowed to authenticate. Error: {Error}", context.UserName,
+                        accountStateError.FriendlyMessage);
+                    context.Result = new GrantValidationResult(TokenRequestErrors.InvalidGrant,
+                        accountStateError.FriendlyMessage);
+                    return;
+                }
+
                 _logger.LogInformation("User {Username} successfully authenticated.", context.UserName);
 
                 // Create the grant validation result with the user's claims.
@@ -60,5 +98,20 @@ public class LdapUserResourceOwnerPasswordValidator<TUser> : IResourceOwnerPassw
             context.Result = new GrantValidationResult(TokenRequestErrors.InvalidGrant,
                 "An error occurred during authentication.");
         }
+    }
+
+    private static Error? GetLdapAccountStateError(IAppUser user)
+    {
+        if (!user.IsActive)
+        {
+            return new Error("ACCOUNT_DISABLED", "LDAP account is disabled.");
+        }
+
+        if (user is ActiveDirectoryAppUser activeDirectoryUser && activeDirectoryUser.IsSuspended)
+        {
+            return new Error("ACCOUNT_LOCKED_OUT", "LDAP account is temporarily suspended.");
+        }
+
+        return null;
     }
 }

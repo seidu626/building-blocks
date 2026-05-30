@@ -236,7 +236,15 @@ namespace BuildingBlocks.Ldap.UserStore
             var redisValue = await _redis.GetDatabase().StringGetAsync(redisKey);
             if (redisValue.HasValue)
             {
-                return redisValue.ToString().TryDeserializeObject<TUser>(_logger, _jsonSettings);
+                var rawValue = redisValue.ToString();
+                var cachedUser = rawValue.TryDeserializeObject<TUser>(_logger, _jsonSettings);
+
+                if (cachedUser != null)
+                {
+                    return cachedUser;
+                }
+
+                return await GetUserFromRedisBySubjectIdAsync(rawValue);
             }
 
             return default;
@@ -250,19 +258,63 @@ namespace BuildingBlocks.Ldap.UserStore
         [Time] [Timeout(1200)]
         private async Task SetRedisDataAsync(TUser user)
         {
+            if (user == null)
+            {
+                return;
+            }
+
             var database = _redis.GetDatabase();
             var userData = JsonConvert.SerializeObject(user, _jsonSettings);
-
-            var tasks = new List<Task>
+            var cacheTasks = new List<Task>
             {
-                database.StringSetAsync(GetRedisKey("subjectId", user.SubjectId), userData, _dataExpireIn),
-                database.StringSetAsync(GetRedisKey("username", user.Username), user.SubjectId, _dataExpireIn),
-                database.StringSetAsync(GetRedisKey("email", user.Email), user.SubjectId, _dataExpireIn),
-                database.StringSetAsync(GetRedisKey("provider", $"{user.ProviderName}/userId/{user.ProviderSubjectId}"),
-                    user.SubjectId, _dataExpireIn)
+                database.StringSetAsync(GetRedisKey("subjectId", user.SubjectId), userData, _dataExpireIn)
             };
 
-            await Task.WhenAll(tasks);
+            if (!string.IsNullOrWhiteSpace(user.Username))
+            {
+                cacheTasks.Add(database.StringSetAsync(GetRedisKey("username", user.Username), userData,
+                    _dataExpireIn));
+            }
+
+            if (!string.IsNullOrWhiteSpace(user.Email))
+            {
+                cacheTasks.Add(database.StringSetAsync(GetRedisKey("email", user.Email), userData,
+                    _dataExpireIn));
+            }
+
+            if (!string.IsNullOrWhiteSpace(user.Mobile))
+            {
+                cacheTasks.Add(database.StringSetAsync(GetRedisKey("phone", user.Mobile), userData,
+                    _dataExpireIn));
+            }
+
+            if (!string.IsNullOrWhiteSpace(user.ProviderName) &&
+                !string.IsNullOrWhiteSpace(user.ProviderSubjectId))
+            {
+                cacheTasks.Add(database.StringSetAsync(GetRedisKey("provider",
+                    $"{user.ProviderName}/userId/{user.ProviderSubjectId}"),
+                    user.SubjectId, _dataExpireIn));
+            }
+
+            await Task.WhenAll(cacheTasks);
+        }
+
+        [Time] [Timeout(1200)]
+        private async Task<TUser?> GetUserFromRedisBySubjectIdAsync(string subjectId)
+        {
+            if (string.IsNullOrWhiteSpace(subjectId))
+            {
+                return default;
+            }
+
+            var subjectCacheKey = GetRedisKey("subjectId", subjectId);
+            var subjectCacheValue = await _redis.GetDatabase().StringGetAsync(subjectCacheKey);
+            if (!subjectCacheValue.HasValue)
+            {
+                return default;
+            }
+
+            return subjectCacheValue.ToString().TryDeserializeObject<TUser>(_logger, _jsonSettings);
         }
 
         private List<Claim> FilterClaims(List<Claim> claims)
