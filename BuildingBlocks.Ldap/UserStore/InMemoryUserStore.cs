@@ -222,7 +222,7 @@ namespace BuildingBlocks.Ldap.UserStore
 
             if (cachedEntry != null && !IsLookupCacheExpired(cachedEntry))
             {
-                user = cachedEntry.IsFound ? cachedEntry.User : null;
+                user = cachedEntry.IsFound ? cachedEntry.User : default;
                 error = cachedEntry.ErrorCode == null ? null : new Error(cachedEntry.ErrorCode,
                     cachedEntry.ErrorMessage ?? "User not found in directory cache.");
                 return true;
@@ -233,7 +233,7 @@ namespace BuildingBlocks.Ldap.UserStore
                 _lookupCache.TryRemove(cacheKey, out _);
             }
 
-            user = null;
+            user = default;
             error = null;
             return false;
         }

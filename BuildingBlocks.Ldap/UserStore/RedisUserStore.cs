@@ -379,7 +379,7 @@ namespace BuildingBlocks.Ldap.UserStore
             }
 
             SetFallbackCache(redisKey, lookupResult.Error!);
-            await TrySetRedisFailureAsync(redisKey, lookupResult.Error!);
+            await TrySetRedisDataAsync(redisKey, lookupResult.Error!);
         }
 
         private void SetFallbackCache(string redisKey, TUser user)
