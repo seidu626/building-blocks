@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Jan Škoruba")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("2.3.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("2.3.0+c22da47a26cba0c19ec78a05a458b412d7505da4")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("2.3.0+4261ef45226e4fcb6e9dcdb9e27bfa02747612cb")]
 [assembly: System.Reflection.AssemblyProductAttribute("BuildingBlocks.Common")]
 [assembly: System.Reflection.AssemblyTitleAttribute("BuildingBlocks.Common")]
 [assembly: System.Reflection.AssemblyVersionAttribute("2.3.0.0")]

@@ -1,10 +1,12 @@
-﻿using System.IdentityModel.Tokens.Jwt;
+﻿using System;
+using System.Collections.Concurrent;
+using System.IdentityModel.Tokens.Jwt;
+using System.Linq;
 using System.Security.Claims;
+using BuildingBlocks.Common;
 using BuildingBlocks.Exceptions;
 using BuildingBlocks.Ldap.Exceptions;
 using CSharpFunctionalExtensions;
-using System.Collections.Concurrent;
-using BuildingBlocks.Common;
 using Duende.IdentityModel;
 
 namespace BuildingBlocks.Ldap.UserStore
@@ -13,10 +15,42 @@ namespace BuildingBlocks.Ldap.UserStore
     {
         private readonly ILdapService<TUser> _authenticationService;
 
-        // In-memory data store using thread-safe concurrent dictionary
-        // Using non-nullable string keys with empty string as fallback for null values
+        // Cache for provider/subject mapping (legacy fast-path for auto-provisioned users)
         private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, TUser>> _users =
             new ConcurrentDictionary<string, ConcurrentDictionary<string, TUser>>();
+
+        // Lookup cache with both success and failure envelopes
+        private readonly ConcurrentDictionary<string, CachedDirectoryUser> _lookupCache =
+            new ConcurrentDictionary<string, CachedDirectoryUser>();
+
+        private readonly TimeSpan _fallbackCacheTtl = TimeSpan.FromMinutes(5);
+        private readonly TimeSpan _fallbackCacheSweepInterval = TimeSpan.FromMinutes(2);
+        private DateTimeOffset _nextFallbackCacheSweepUtc = DateTimeOffset.UtcNow;
+        private readonly object _fallbackCacheSweepLock = new();
+
+        private sealed class CachedDirectoryUser
+        {
+            public bool IsFound { get; }
+            public TUser? User { get; }
+            public string? ErrorCode { get; }
+            public string? ErrorMessage { get; }
+            public DateTimeOffset CachedAtUtc { get; }
+
+            public CachedDirectoryUser(TUser user, DateTimeOffset cachedAtUtc)
+            {
+                IsFound = true;
+                User = user;
+                CachedAtUtc = cachedAtUtc;
+            }
+
+            public CachedDirectoryUser(Error error, DateTimeOffset cachedAtUtc)
+            {
+                IsFound = false;
+                ErrorCode = error?.Code;
+                ErrorMessage = error?.FriendlyMessage;
+                CachedAtUtc = cachedAtUtc;
+            }
+        }
 
         public InMemoryUserStore(ILdapService<TUser> authenticationService)
         {
@@ -34,32 +68,37 @@ namespace BuildingBlocks.Ldap.UserStore
             IdentifierType identifierType,
             string domain)
         {
-            return await PerformAuthenticationAsync(() =>
+            var cacheKey = BuildLookupKey(identifierType.ToString(), BuildCredentialsLookupKey(username, domain));
+            return await FindAndCacheAsync(cacheKey, () =>
                 _authenticationService.Login(username, password, identifierType, domain));
         }
 
         public async Task<Result<TUser, Error>> FindBySubjectIdAsync(string? subjectId)
         {
-            return await FindAndCacheAsync(u => u.SubjectId == subjectId,
-                () => _authenticationService.FindUser(subjectId?.Replace("ldap_", "")));
+            var normalizedSubjectId = subjectId?.Replace("ldap_", "");
+            return await FindByKeyWithProviderFallbackAsync("subjectId", normalizedSubjectId,
+                () => _authenticationService.FindUser(normalizedSubjectId));
         }
 
         public async Task<Result<TUser, Error>> FindByUsernameAsync(string? username)
         {
-            return await FindAndCacheAsync(u => u.Username == username,
-                () => _authenticationService.FindUser(username?.Replace("ldap_", "")));
+            var normalizedUsername = username?.Replace("ldap_", "");
+            return await FindByKeyWithProviderFallbackAsync("username", normalizedUsername,
+                () => _authenticationService.FindUser(normalizedUsername));
         }
 
         public async Task<Result<TUser, Error>> FindByEmailAsync(string? email)
         {
-            return await FindAndCacheAsync(u => u.Email == email,
-                () => _authenticationService.FindUserByEmail(email?.Replace("ldap_", "")));
+            var normalizedEmail = email?.Replace("ldap_", "");
+            return await FindByKeyWithProviderFallbackAsync("email", normalizedEmail,
+                () => _authenticationService.FindUserByEmail(normalizedEmail));
         }
 
         public async Task<Result<TUser, Error>> FindByPhoneAsync(string? phone)
         {
-            return await FindAndCacheAsync(u => u.Mobile == phone,
-                () => _authenticationService.FindUserByPhone(phone?.Replace("ldap_", "")));
+            var normalizedPhone = phone?.Replace("ldap_", "");
+            return await FindByKeyWithProviderFallbackAsync("phone", normalizedPhone,
+                () => _authenticationService.FindUserByPhone(normalizedPhone));
         }
 
         public async Task<Result<List<string>, Error>> GetUserAttributesAsync(string attributeName,
@@ -76,7 +115,8 @@ namespace BuildingBlocks.Ldap.UserStore
                 return await Task.FromResult(Result.Success<TUser, Error>(user));
             }
 
-            return await Task.FromResult(Result.Failure<TUser, Error>(new Error("404", "User not found in external provider")));
+            return await Task.FromResult(
+                Result.Failure<TUser, Error>(new Error("404", "User not found in external provider")));
         }
 
         public Task<Result<TUser, Error>> AutoProvisionUserAsync(string? provider, string? userId,
@@ -95,26 +135,22 @@ namespace BuildingBlocks.Ldap.UserStore
                 Claims = filteredClaims
             };
 
-            var providerKey = provider ?? string.Empty;
-            var userIdKey = userId ?? string.Empty;
-            
-            _users.AddOrUpdate(providerKey,
-                new ConcurrentDictionary<string, TUser> { [userIdKey] = user },
-                (key, existingUsers) =>
-                {
-                    existingUsers[userIdKey] = user;
-                    return existingUsers;
-                });
+            CacheProviderUser(user);
+            CacheLookupCache(BuildLookupKey("subjectId", user.SubjectId), user);
+            CacheLookupCache(BuildLookupKey("username", user.Username), user);
+            CacheLookupCache(BuildLookupKey("email", user.Email), user);
+            CacheLookupCache(BuildLookupKey("phone", user.Mobile), user);
 
             return Task.FromResult<Result<TUser, Error>>(user);
         }
 
         private async Task<Result<TUser, Error>> PerformAuthenticationAsync(
-            Func<Task<Result<TUser, Error>>> authenticationFunc)
+            Func<Task<Result<TUser, Error>>> authenticationFunc,
+            string cacheKey)
         {
             try
             {
-                return await authenticationFunc();
+                return await FindAndCacheAsync(cacheKey, authenticationFunc);
             }
             catch (LoginFailedException ex)
             {
@@ -122,36 +158,167 @@ namespace BuildingBlocks.Ldap.UserStore
             }
         }
 
-        private async Task<Result<TUser, Error>> FindAndCacheAsync(Func<TUser, bool> predicate,
+        private async Task<Result<TUser, Error>> FindByKeyWithProviderFallbackAsync(string keyType, string? key,
             Func<Task<Result<TUser, Error>>> fetchUser)
         {
-            var cachedUser = _users.Values.SelectMany(providerUsers => providerUsers.Values).FirstOrDefault(predicate);
-
-            if (cachedUser != null)
+            var cachedProviderUser = TryGetProviderCachedUser(u => keyType switch
             {
-                return cachedUser;
+                "subjectId" => string.Equals(u.SubjectId, key, StringComparison.OrdinalIgnoreCase),
+                "username" => string.Equals(u.Username, key, StringComparison.OrdinalIgnoreCase),
+                "email" => string.Equals(u.Email, key, StringComparison.OrdinalIgnoreCase),
+                "phone" => string.Equals(u.Mobile, key, StringComparison.OrdinalIgnoreCase),
+                _ => false
+            });
+
+            if (cachedProviderUser != null)
+            {
+                return cachedProviderUser;
+            }
+
+            return await FindAndCacheAsync(BuildLookupKey(keyType, key), fetchUser);
+        }
+
+        private async Task<Result<TUser, Error>> FindAndCacheAsync(string cacheKey,
+            Func<Task<Result<TUser, Error>>> fetchUser)
+        {
+            PurgeExpiredLookupCacheEntries();
+
+            if (TryGetLookupCache(cacheKey, out var cachedUser, out var cachedError))
+            {
+                return cachedUser != null
+                    ? Result.Success<TUser, Error>(cachedUser)
+                    : Result.Failure<TUser, Error>(cachedError!);
             }
 
             var fetchResult = await fetchUser();
-            if (fetchResult.IsFailure)
+            if (fetchResult.IsSuccess && fetchResult.Value != null)
             {
-                return Result.Failure<TUser, Error>(fetchResult.Error);
+                CacheLookupCache(cacheKey, fetchResult.Value);
+                CacheProviderUser(fetchResult.Value);
+                return fetchResult;
             }
 
-            var fetchedUser = fetchResult.Value;
+            if (fetchResult.IsFailure && IsCacheableDirectoryLookupFailure(fetchResult.Error))
+            {
+                CacheLookupCache(cacheKey, fetchResult.Error!);
+            }
 
-            var providerKey = fetchedUser.ProviderName ?? string.Empty;
-            var subjectIdKey = fetchedUser.ProviderSubjectId ?? string.Empty;
-            
-            _users.AddOrUpdate(providerKey,
-                new ConcurrentDictionary<string, TUser> { [subjectIdKey] = fetchedUser },
-                (key, existingUsers) =>
+            return fetchResult;
+        }
+
+        private void CacheLookupCache(string cacheKey, TUser user)
+        {
+            _lookupCache[cacheKey] = new CachedDirectoryUser(user, DateTimeOffset.UtcNow);
+        }
+
+        private void CacheLookupCache(string cacheKey, Error error)
+        {
+            _lookupCache[cacheKey] = new CachedDirectoryUser(error, DateTimeOffset.UtcNow);
+        }
+
+        private bool TryGetLookupCache(string cacheKey, out TUser? user, out Error? error)
+        {
+            _lookupCache.TryGetValue(cacheKey, out var cachedEntry);
+
+            if (cachedEntry != null && !IsLookupCacheExpired(cachedEntry))
+            {
+                user = cachedEntry.IsFound ? cachedEntry.User : null;
+                error = cachedEntry.ErrorCode == null ? null : new Error(cachedEntry.ErrorCode,
+                    cachedEntry.ErrorMessage ?? "User not found in directory cache.");
+                return true;
+            }
+
+            if (cachedEntry != null)
+            {
+                _lookupCache.TryRemove(cacheKey, out _);
+            }
+
+            user = null;
+            error = null;
+            return false;
+        }
+
+        private static bool IsLookupKeyInvalid(string lookupKey)
+        {
+            return string.IsNullOrWhiteSpace(lookupKey);
+        }
+
+        private static bool IsCacheableDirectoryLookupFailure(Error error)
+        {
+            if (error == null)
+            {
+                return false;
+            }
+
+            return string.Equals(error.Code, "404", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(error.Code, "USER_NOT_FOUND", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(error.Code, "UserNotFound", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private bool IsLookupCacheExpired(CachedDirectoryUser cachedDirectoryUser)
+        {
+            return DateTimeOffset.UtcNow - cachedDirectoryUser.CachedAtUtc > _fallbackCacheTtl;
+        }
+
+        private void PurgeExpiredLookupCacheEntries()
+        {
+            var now = DateTimeOffset.UtcNow;
+            if (now < _nextFallbackCacheSweepUtc)
+            {
+                return;
+            }
+
+            lock (_fallbackCacheSweepLock)
+            {
+                if (now < _nextFallbackCacheSweepUtc)
                 {
-                    existingUsers[subjectIdKey] = fetchedUser;
+                    return;
+                }
+
+                foreach (var key in _lookupCache.Keys)
+                {
+                    if (_lookupCache.TryGetValue(key, out var entry) && IsLookupCacheExpired(entry))
+                    {
+                        _lookupCache.TryRemove(key, out _);
+                    }
+                }
+
+                _nextFallbackCacheSweepUtc = now + _fallbackCacheSweepInterval;
+            }
+        }
+
+        private static string BuildLookupKey(string keyType, string? key)
+        {
+            return $"{keyType}/{key}";
+        }
+
+        private static string BuildCredentialsLookupKey(string? username, string? domain)
+        {
+            if (string.IsNullOrWhiteSpace(domain))
+            {
+                return username ?? string.Empty;
+            }
+
+            return $"{domain}:{username}";
+        }
+
+        private TUser? TryGetProviderCachedUser(Func<TUser, bool> predicate)
+        {
+            return _users.Values.SelectMany(providerUsers => providerUsers.Values).FirstOrDefault(predicate);
+        }
+
+        private void CacheProviderUser(TUser user)
+        {
+            var providerKey = user.ProviderName ?? string.Empty;
+            var subjectIdKey = user.ProviderSubjectId ?? string.Empty;
+
+            _users.AddOrUpdate(providerKey,
+                new ConcurrentDictionary<string, TUser> { [subjectIdKey] = user },
+                (_, existingUsers) =>
+                {
+                    existingUsers[subjectIdKey] = user;
                     return existingUsers;
                 });
-
-            return fetchedUser;
         }
 
         private List<Claim> FilterClaims(List<Claim> claims)

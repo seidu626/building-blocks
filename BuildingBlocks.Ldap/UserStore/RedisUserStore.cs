@@ -41,14 +41,43 @@ namespace BuildingBlocks.Ldap.UserStore
 
         private sealed class CachedDirectoryUser
         {
-            public TUser User { get; }
+            public bool IsFound { get; }
+            public TUser? User { get; }
+            public string? ErrorCode { get; }
+            public string? ErrorMessage { get; }
             public DateTimeOffset CachedAtUtc { get; }
 
             public CachedDirectoryUser(TUser user, DateTimeOffset cachedAtUtc)
             {
+                IsFound = true;
                 User = user;
                 CachedAtUtc = cachedAtUtc;
             }
+
+            public CachedDirectoryUser(Error error, DateTimeOffset cachedAtUtc)
+            {
+                IsFound = false;
+                ErrorCode = error?.Code;
+                ErrorMessage = error?.FriendlyMessage;
+                User = default;
+                CachedAtUtc = cachedAtUtc;
+            }
+        }
+
+        private sealed class RedisDirectoryLookupCacheEntry
+        {
+            public bool IsFound { get; set; }
+            public string? LookupKey { get; set; }
+            public string? ErrorCode { get; set; }
+            public string? ErrorMessage { get; set; }
+        }
+
+        private sealed class CachedLookupResult
+        {
+            public bool IsHit { get; set; }
+            public bool IsFound { get; set; }
+            public TUser? User { get; set; }
+            public Error? Error { get; set; }
         }
 
         public RedisUserStore(ILdapService<TUser> ldapService, ExtensionConfig config,
@@ -113,15 +142,20 @@ namespace BuildingBlocks.Ldap.UserStore
         public async Task<Result<TUser, Error>> ValidateCredentialsAsync(string username, string password,
             IdentifierType identifierType)
         {
-            return await ExecuteAndCacheAsync(() => _ldapService.Login(username, password, identifierType, null), "username", username);
+            return await ExecuteAndCacheAsync(
+                () => _ldapService.Login(username, password, identifierType, null),
+                BuildCredentialsLookupType(identifierType),
+                BuildCredentialsLookupKey(username, null));
         }
 
         public async Task<Result<TUser, Error>> ValidateCredentialsAsync(string username, string password,
             IdentifierType identifierType,
             string domain)
         {
-            return await ExecuteAndCacheAsync(() => _ldapService.Login(username, password, identifierType, domain), "username",
-                username);
+            return await ExecuteAndCacheAsync(
+                () => _ldapService.Login(username, password, identifierType, domain),
+                BuildCredentialsLookupType(identifierType),
+                BuildCredentialsLookupKey(username, domain));
         }
 
         public async Task<Result<TUser, Error>> FindBySubjectIdAsync(string? subjectId)
@@ -203,29 +237,38 @@ namespace BuildingBlocks.Ldap.UserStore
             var redisKey = GetRedisKey(keyType, key);
             PurgeExpiredFallbackEntries();
 
-            // Attempt to get the user from Redis
-            var cachedUser = await GetCachedUserFromRedisAsync(redisKey);
-
-            if (cachedUser != null)
+            if (IsLookupKeyInvalid(key))
             {
-                return cachedUser;
+                return await fetchUser();
+            }
+
+            // Attempt to get the user from Redis
+            var redisLookup = await GetCachedLookupFromRedisAsync(redisKey);
+            if (redisLookup != null && redisLookup.IsHit)
+            {
+                return redisLookup.IsFound
+                    ? Result.Success<TUser, Error>(redisLookup.User!)
+                    : Result.Failure<TUser, Error>(redisLookup.Error!);
             }
 
             // If Redis fails or no user is found, check fallback cache
-            if (TryGetFallbackUser(redisKey, out var fallbackUser))
+            if (TryGetFallbackLookup(redisKey, out var fallbackUser, out var fallbackError))
             {
-                return fallbackUser;
+                return fallbackUser != null
+                    ? Result.Success<TUser, Error>(fallbackUser)
+                    : Result.Failure<TUser, Error>(fallbackError!);
             }
 
             // Fetch the user from the source (LDAP service)
             var fetchResult = await fetchUser();
             if (fetchResult.IsFailure)
             {
+                await CacheLookupResultAsync(fetchResult, redisKey, shouldCacheFailure: IsCacheableDirectoryLookupFailure(fetchResult.Error));
                 return fetchResult;
             }
 
             // Save to both Redis and in-memory fallback cache
-            await CacheLookupResultAsync(fetchResult.Value, redisKey);
+            await CacheLookupResultAsync(fetchResult, redisKey);
 
             return fetchResult;
         }
@@ -239,8 +282,8 @@ namespace BuildingBlocks.Ldap.UserStore
                 return await _circuitBreakerPolicy.ExecuteAsync(async () =>
                 {
                     var result = await action();
-                    if (!result.IsSuccess) return result;
-                    await CacheLookupResultAsync(result.Value, GetRedisKey(keyType, key));
+                    await CacheLookupResultAsync(result, GetRedisKey(keyType, key),
+                        shouldCacheFailure: IsCacheableDirectoryLookupFailure(result.Error));
 
                     return result;
                 });
@@ -252,11 +295,17 @@ namespace BuildingBlocks.Ldap.UserStore
             }
         }
 
-        private async Task<TUser?> GetCachedUserFromRedisAsync(string redisKey)
+        private async Task<CachedLookupResult?> GetCachedLookupFromRedisAsync(string redisKey)
         {
             try
             {
-                return await _retryPolicy.ExecuteAsync(async () => await GetUserFromRedisAsync(redisKey));
+                var redisValue = await _retryPolicy.ExecuteAsync(async () => await GetCachedLookupValueFromRedisAsync(redisKey));
+                if (redisValue == null)
+                {
+                    return null;
+                }
+
+                return redisValue;
             }
             catch (RedisTimeoutException ex)
             {
@@ -270,15 +319,67 @@ namespace BuildingBlocks.Ldap.UserStore
             return default;
         }
 
-        private async Task CacheLookupResultAsync(TUser user, string redisKey)
+        private async Task<CachedLookupResult?> GetCachedLookupValueFromRedisAsync(string redisKey)
         {
-            if (user == null)
+            var redisValue = await _redis.GetDatabase().StringGetAsync(redisKey);
+            if (!redisValue.HasValue)
+            {
+                return null;
+            }
+
+            var rawValue = redisValue.ToString();
+            var cachedUser = rawValue.TryDeserializeObject<TUser>(_logger, _jsonSettings);
+            if (cachedUser != null)
+            {
+                return new CachedLookupResult { IsHit = true, IsFound = true, User = cachedUser };
+            }
+
+            var cacheEntry = rawValue.TryDeserializeObject<RedisDirectoryLookupCacheEntry>(_logger, _jsonSettings);
+            if (cacheEntry != null)
+            {
+                return cacheEntry.IsFound
+                    ? null
+                    : new CachedLookupResult
+                    {
+                        IsHit = true,
+                        IsFound = false,
+                        Error = new Error(cacheEntry.ErrorCode ?? "404", cacheEntry.ErrorMessage ?? "User not found.")
+                    };
+            }
+
+            // Fallback for provider key mapping: stored value may be the subject ID
+            var userBySubjectId = await GetUserFromRedisBySubjectIdAsync(rawValue);
+            if (userBySubjectId != null)
+            {
+                return new CachedLookupResult { IsHit = true, IsFound = true, User = userBySubjectId };
+            }
+
+            return null;
+        }
+
+        private async Task CacheLookupResultAsync(Result<TUser, Error> lookupResult, string redisKey,
+            bool shouldCacheFailure = false)
+        {
+            if (lookupResult.IsSuccess)
+            {
+                var user = lookupResult.Value;
+                if (user == null)
+                {
+                    return;
+                }
+
+                SetFallbackCache(redisKey, user);
+                await TrySetRedisDataAsync(user);
+                return;
+            }
+
+            if (!shouldCacheFailure)
             {
                 return;
             }
 
-            SetFallbackCache(redisKey, user);
-            await TrySetRedisDataAsync(user);
+            SetFallbackCache(redisKey, lookupResult.Error!);
+            await TrySetRedisFailureAsync(redisKey, lookupResult.Error!);
         }
 
         private void SetFallbackCache(string redisKey, TUser user)
@@ -286,13 +387,22 @@ namespace BuildingBlocks.Ldap.UserStore
             _fallbackCache[redisKey] = new CachedDirectoryUser(user, DateTimeOffset.UtcNow);
         }
 
-        private bool TryGetFallbackUser(string redisKey, out TUser? user)
+        private void SetFallbackCache(string redisKey, Error error)
+        {
+            _fallbackCache[redisKey] = new CachedDirectoryUser(error, DateTimeOffset.UtcNow);
+        }
+
+        private bool TryGetFallbackLookup(string redisKey, out TUser? user, out Error? error)
         {
             _fallbackCache.TryGetValue(redisKey, out var fallbackEntry);
 
             if (fallbackEntry != null && !IsFallbackEntryExpired(fallbackEntry))
             {
                 user = fallbackEntry.User;
+                error = fallbackEntry.ErrorCode == null
+                    ? null
+                    : new Error(fallbackEntry.ErrorCode,
+                        fallbackEntry.ErrorMessage ?? "User not found in directory cache.");
                 return true;
             }
 
@@ -302,7 +412,25 @@ namespace BuildingBlocks.Ldap.UserStore
             }
 
             user = default;
+            error = null;
             return false;
+        }
+
+        private static bool IsLookupKeyInvalid(string key)
+        {
+            return string.IsNullOrWhiteSpace(key);
+        }
+
+        private static bool IsCacheableDirectoryLookupFailure(Error error)
+        {
+            if (error == null)
+            {
+                return false;
+            }
+
+            return string.Equals(error.Code, "404", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(error.Code, "USER_NOT_FOUND", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(error.Code, "UserNotFound", StringComparison.OrdinalIgnoreCase);
         }
 
         private bool IsFallbackEntryExpired(CachedDirectoryUser cachedDirectoryUser)
@@ -358,6 +486,41 @@ namespace BuildingBlocks.Ldap.UserStore
             }
         }
 
+        private async Task TrySetRedisDataAsync(string redisKey, Error error)
+        {
+            try
+            {
+                await SetRedisLookupDataAsync(redisKey, error);
+            }
+            catch (RedisTimeoutException ex)
+            {
+                _logger.LogWarning(ex, "Redis timeout while writing lookup cache entry for key {RedisKey}.", redisKey);
+            }
+            catch (RedisException ex)
+            {
+                _logger.LogWarning(ex, "Redis error while writing lookup cache entry for key {RedisKey}.", redisKey);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Unexpected error while writing lookup cache entry for key {RedisKey}.", redisKey);
+            }
+        }
+
+        private async Task SetRedisLookupDataAsync(string redisKey, Error error)
+        {
+            var database = _redis.GetDatabase();
+            var cacheEntry = new RedisDirectoryLookupCacheEntry
+            {
+                IsFound = false,
+                LookupKey = redisKey,
+                ErrorCode = error?.Code,
+                ErrorMessage = error?.FriendlyMessage
+            };
+
+            var lookupData = JsonConvert.SerializeObject(cacheEntry, _jsonSettings);
+            await database.StringSetAsync(redisKey, lookupData, _dataExpireIn);
+        }
+
         [Time] [Timeout(1200)]
         private async Task<TUser?> GetUserFromRedisAsync(string redisKey)
         {
@@ -381,6 +544,31 @@ namespace BuildingBlocks.Ldap.UserStore
         private static string GetRedisKey(string type, string? key)
         {
             return $"IdentityServer/OpenId/{type}/{key}";
+        }
+
+        private static string BuildCredentialsLookupType(IdentifierType identifierType)
+        {
+            return identifierType switch
+            {
+                IdentifierType.Email => "email",
+                IdentifierType.Phone => "phone",
+                _ => "username"
+            };
+        }
+
+        private static string BuildCredentialsLookupKey(string? identifier, string? domain)
+        {
+            if (string.IsNullOrWhiteSpace(identifier))
+            {
+                return string.Empty;
+            }
+
+            if (string.IsNullOrWhiteSpace(domain))
+            {
+                return identifier;
+            }
+
+            return $"{domain}:{identifier}";
         }
 
         [Time] [Timeout(1200)]

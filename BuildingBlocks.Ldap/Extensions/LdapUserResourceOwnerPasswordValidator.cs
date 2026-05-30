@@ -33,8 +33,16 @@ public class LdapUserResourceOwnerPasswordValidator<TUser> : IResourceOwnerPassw
     {
         try
         {
+            if (string.IsNullOrWhiteSpace(context.UserName))
+            {
+                context.Result = new GrantValidationResult(TokenRequestErrors.InvalidGrant, "Invalid username.");
+                return;
+            }
+
+            var identifierType = IdentifierTypeChecker.GetIdentifierType(context.UserName);
+
             // Validate the user credentials asynchronously.
-            Result<TUser, Error> result = await _users.ValidateCredentialsAsync(context.UserName, context.Password, IdentifierType.Username);
+            Result<TUser, Error> result = await _users.ValidateCredentialsAsync(context.UserName, context.Password, identifierType);
 
             if (result.IsSuccess && result.Value != null)
             {
