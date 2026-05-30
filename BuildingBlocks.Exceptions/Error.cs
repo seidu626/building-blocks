@@ -24,6 +24,8 @@ public sealed class Error : ValueObject
         _stackTrace = exception?.StackTrace ?? string.Empty;
     }
 
+    public string Code => _code;
+
     public string FriendlyMessage { get; set; }
 
     public string StackTrace => _stackTrace;

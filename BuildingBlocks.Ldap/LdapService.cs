@@ -21,6 +21,7 @@ namespace BuildingBlocks.Ldap
         private readonly ILogger<LdapService<TUser>> _logger;
         private readonly ICollection<LdapConfig> _config;
         private readonly ConcurrentDictionary<string, ConcurrentBag<LdapConnection>> _connectionPools = new();
+        private readonly string[] _phoneAttributesToCheck = new[] { "mobile", "telephoneNumber", "phone" };
         private readonly int _maxPoolSize; // Maximum connections in the pool
         private readonly AsyncRetryPolicy _retryPolicy;
         private readonly AsyncCircuitBreakerPolicy _circuitBreakerPolicy;
@@ -204,38 +205,7 @@ namespace BuildingBlocks.Ldap
 
         public async Task<Result<TUser, Error>> FindUserByPhone(string? phone, string? domain)
         {
-            var normalizedPhone = PhoneLookupHelper.NormalizePhoneToDigits(phone);
-            foreach (var formattedPhone in PhoneLookupHelper.GetPhoneLookupCandidates(phone))
-            {
-                if (string.IsNullOrWhiteSpace(formattedPhone))
-                {
-                    continue;
-                }
-
-                var result = await GetUserByAttributeAsync("mobile", formattedPhone, domain, true);
-                if (result.IsSuccess)
-                {
-                    return result; // Return the user if found
-                }
-            }
-
-            if (normalizedPhone == null)
-            {
-                return new Error("404", "User not found with the given phone number.");
-            }
-
-            var normalizedMatchResult = await FindUserByNormalizedPhoneAsync(normalizedPhone, domain);
-            if (normalizedMatchResult.IsSuccess)
-            {
-                return normalizedMatchResult;
-            }
-
-            if (normalizedMatchResult.Error.Code != "404")
-            {
-                return normalizedMatchResult.Error;
-            }
-
-            return new Error("404", "User not found with the given phone number.");
+            return await FindUserByPhoneEntryAsync(phone, domain);
         }
 
         private async Task<Result<TUser, Error>> FindUserByUsernameAsync(string? username, string? domain)
@@ -301,45 +271,35 @@ namespace BuildingBlocks.Ldap
 
         private async Task<Result<TUser, Error>> FindUserByNormalizedPhoneAsync(string normalizedPhone, string? domain)
         {
+            if (string.IsNullOrWhiteSpace(normalizedPhone))
+            {
+                return new Error("404", "User not found with the given phone number.");
+            }
+
+            return await FindUserByPhoneAsync(normalizedPhone, domain);
+        }
+
+        private async Task<Result<TUser, Error>> FindUserByPhoneAsync(string? phone, string? domain)
+        {
             var ldapConfig = _config.First();
             var connection = await GetConnectionFromPoolAsync(ldapConfig);
-            var phoneAttributesToCheck = new[] { "mobile", "telephoneNumber", "phone" };
 
             try
             {
                 await connection.BindAsync(ldapConfig.BindDn, ldapConfig.BindCredentials);
-
-                foreach (var phoneAttribute in phoneAttributesToCheck)
+                var userEntryResult = await FindUserEntryByPhoneAsync(phone, ldapConfig, connection);
+                if (userEntryResult.IsFailure)
                 {
-                    var searchResult = await PerformLdapSearch(phoneAttribute, "*", ldapConfig, connection, true);
-                    if (searchResult.IsFailure)
-                    {
-                        if (searchResult.Error.Code != "404")
-                        {
-                            return searchResult.Error;
-                        }
-
-                        continue;
-                    }
-
-                    while (await searchResult.Value.Results.HasMoreAsync())
-                    {
-                        var ldapEntry = await searchResult.Value.Results.NextAsync();
-
-                        if (!PhoneLookupHelper.IsNormalizedPhoneMatch(
-                                GetPhoneAttributeValue(ldapEntry, phoneAttribute), normalizedPhone) &&
-                            !PhoneLookupHelper.IsNormalizedPhoneMatch(
-                                GetPhoneAttributeValue(ldapEntry, "mobile"), normalizedPhone))
-                        {
-                            continue;
-                        }
-
-                        var managerEntry = await GetManagerEntry(ldapEntry, searchResult.Value.LdapConnection);
-                        return CreateUser(ldapEntry, managerEntry, domain ?? "local");
-                    }
+                    return userEntryResult.Error;
                 }
 
-                return new Error("404", "User not found with the given phone number.");
+                if (userEntryResult.Value == null)
+                {
+                    return new Error("404", "User not found with the given phone number.");
+                }
+
+                var managerEntry = await GetManagerEntry(userEntryResult.Value, connection);
+                return CreateUser(userEntryResult.Value, managerEntry, domain ?? "local");
             }
             catch (LdapException e)
             {
@@ -357,6 +317,86 @@ namespace BuildingBlocks.Ldap
             {
                 ReturnConnectionToPool(ldapConfig, connection);
             }
+        }
+
+        private async Task<Result<LdapEntry, Error>> FindUserEntryByPhoneAsync(string? phone, LdapConfig ldapConfig, LdapConnection connection)
+        {
+            var normalizedPhone = PhoneLookupHelper.NormalizePhoneToDigits(phone);
+            if (string.IsNullOrWhiteSpace(normalizedPhone))
+            {
+                return new Error("400", "Phone number is required.");
+            }
+
+            foreach (var formattedPhone in PhoneLookupHelper.GetPhoneLookupCandidates(phone))
+            {
+                if (string.IsNullOrWhiteSpace(formattedPhone))
+                {
+                    continue;
+                }
+
+                foreach (var phoneAttribute in _phoneAttributesToCheck)
+                {
+                    var searchResult = await PerformLdapSearch(phoneAttribute, formattedPhone, ldapConfig, connection, true);
+                    if (searchResult.IsFailure)
+                    {
+                        if (searchResult.Error.Code != "404")
+                        {
+                            return searchResult.Error;
+                        }
+
+                        continue;
+                    }
+
+                    var userEntry = await GetUserFromSearchResults(searchResult.Value);
+                    if (userEntry.IsFailure)
+                    {
+                        return userEntry.Error;
+                    }
+
+                    if (userEntry.Value != null)
+                    {
+                        return userEntry.Value;
+                    }
+                }
+            }
+
+            foreach (var phoneAttribute in _phoneAttributesToCheck)
+            {
+                var searchResult = await PerformLdapSearch(phoneAttribute, "*", ldapConfig, connection, true);
+                if (searchResult.IsFailure)
+                {
+                    if (searchResult.Error.Code != "404")
+                    {
+                        return searchResult.Error;
+                    }
+
+                    continue;
+                }
+
+                while (await searchResult.Value.Results.HasMoreAsync())
+                {
+                    var ldapEntry = await searchResult.Value.Results.NextAsync();
+                    if (DoesEntryMatchNormalizedPhone(ldapEntry, normalizedPhone))
+                    {
+                        return ldapEntry;
+                    }
+                }
+            }
+
+            return new Error("404", "User not found with the given phone number.");
+        }
+
+        private bool DoesEntryMatchNormalizedPhone(LdapEntry ldapEntry, string normalizedPhone)
+        {
+            foreach (var phoneAttribute in _phoneAttributesToCheck)
+            {
+                if (PhoneLookupHelper.IsNormalizedPhoneMatch(GetPhoneAttributeValue(ldapEntry, phoneAttribute), normalizedPhone))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         [Time]
