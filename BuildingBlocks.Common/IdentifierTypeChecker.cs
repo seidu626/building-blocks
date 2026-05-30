@@ -82,6 +82,6 @@ public static class IdentifierTypeChecker
     }
 
     private const string ExtensionPattern = "(?:\\s*(?:ext|x|extension)\\s*\\d+\\s*)$";
-    private const string PhoneCharacterPattern = @"^[\\+\\s()\\-./\\d]+$";
+    private const string PhoneCharacterPattern = @"^[+\s()./\d-]+$";
     private static readonly Regex PhoneCharacterRegex = new(PhoneCharacterPattern, RegexOptions.Compiled);
 }
