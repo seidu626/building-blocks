@@ -5,8 +5,8 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace BuildingBlocks.Ldap.Extensions;
 
-public static class AddLdapUsersExtension
-{
+    public static class AddLdapUsersExtension
+    {
     /// <summary>
     /// Adds the LDAP users mechanism to IdentityServer.
     /// </summary>
@@ -22,11 +22,17 @@ public static class AddLdapUsersExtension
         where TUserDetails : IAppUser, new()
     {
         LdapConfig ldapConfig = AddLdapUsersExtension.RegisterLdapConfigurations(builder, configuration);
+        ldapConfig.Redis ??= extensionConfig.Redis;
+
         if (ldapConfig.UseMockLdap)
             builder.Services.AddSingleton<ILdapService<TUserDetails>, BuildingBlocks.Ldap.Services.MockLdapService<TUserDetails>>();
         else
             builder.Services.AddSingleton<ILdapService<TUserDetails>, LdapService<TUserDetails>>();
-        if (ldapConfig.UserStore == UserStore.InMemory)
+
+        var useInMemoryUserStore = ldapConfig.UserStore == UserStore.InMemory ||
+                                  string.IsNullOrWhiteSpace(ldapConfig.Redis);
+
+        if (useInMemoryUserStore)
             builder.Services.AddSingleton<ILdapUserStore<TUserDetails>, InMemoryUserStore<TUserDetails>>();
         else
             builder.Services.AddSingleton<ILdapUserStore<TUserDetails>, RedisUserStore<TUserDetails>>();
@@ -51,6 +57,8 @@ public static class AddLdapUsersExtension
         where TUserDetails : IAppUser, new()
     {
         AddLdapUsersExtension.RegisterLdapConfigurations(builder, configuration);
+        ldapConfig.Redis ??= extensionConfig.Redis;
+
         builder.Services.AddSingleton<ILdapService<TUserDetails>, LdapService<TUserDetails>>();
         builder.Services.AddSingleton<ILdapUserStore<TUserDetails>>(customUserStore);
         builder.AddProfileService<LdapUserProfileService<TUserDetails>>();
