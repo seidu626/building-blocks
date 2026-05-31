@@ -22,7 +22,6 @@ namespace BuildingBlocks.Ldap.Extensions;
         where TUserDetails : IAppUser, new()
     {
         LdapConfig ldapConfig = AddLdapUsersExtension.RegisterLdapConfigurations(builder, configuration);
-        ldapConfig.Redis ??= extensionConfig.Redis;
 
         if (ldapConfig.UseMockLdap)
             builder.Services.AddSingleton<ILdapService<TUserDetails>, BuildingBlocks.Ldap.Services.MockLdapService<TUserDetails>>();
@@ -57,7 +56,6 @@ namespace BuildingBlocks.Ldap.Extensions;
         where TUserDetails : IAppUser, new()
     {
         AddLdapUsersExtension.RegisterLdapConfigurations(builder, configuration);
-        ldapConfig.Redis ??= extensionConfig.Redis;
 
         builder.Services.AddSingleton<ILdapService<TUserDetails>, LdapService<TUserDetails>>();
         builder.Services.AddSingleton<ILdapUserStore<TUserDetails>>(customUserStore);
@@ -73,9 +71,11 @@ namespace BuildingBlocks.Ldap.Extensions;
         var section = configuration.GetSection("LdapServerConfiguration");
         var extensionConfig = section.Get<ExtensionConfig>() ?? new ExtensionConfig();
         var ldapConfig = extensionConfig.Connections?.FirstOrDefault() ?? section.Get<LdapConfig>() ?? new LdapConfig();
+        ldapConfig.Redis ??= extensionConfig.Redis;
 
         if (extensionConfig.Connections == null || !extensionConfig.Connections.Any())
         {
+            extensionConfig.Redis = ldapConfig.Redis;
             ldapConfig.RefreshClaimsInSeconds ??= 1800;
             extensionConfig.Connections = new List<LdapConfig> { ldapConfig };
         }
