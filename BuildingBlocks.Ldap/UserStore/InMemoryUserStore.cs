@@ -323,7 +323,7 @@ namespace BuildingBlocks.Ldap.UserStore
 
         private List<Claim> FilterClaims(List<Claim> claims)
         {
-            return claims.Select(claim =>
+            var mapped = claims.Select(claim =>
             {
                 if (claim.Type == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name")
                 {
@@ -337,6 +337,8 @@ namespace BuildingBlocks.Ldap.UserStore
 
                 return claim;
             }).ToList();
+
+            return ClaimNormalization.CollapseSingleValuedDisplayClaims(mapped);
         }
     }
 }
