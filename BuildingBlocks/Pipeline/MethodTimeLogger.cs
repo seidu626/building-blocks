@@ -5,7 +5,7 @@ namespace BuildingBlocks.Pipeline
 {
     public static class MethodTimeLogger
     {
-        private static ILogger _logger;
+        private static ILogger _logger = Serilog.Log.Logger;
 
         public static void ConfigureLogger(ILogger logger)
         {
@@ -14,12 +14,6 @@ namespace BuildingBlocks.Pipeline
                   
         public static void Log(MethodBase methodBase, TimeSpan timeSpan, string message)
         {
-            if (_logger == null)
-            {       
-                throw new InvalidOperationException(
-                    "Logger is not configured. Call ConfigureLogger to set the logger instance.");
-            }
-
             _logger.Debug(
                 "{Class}.{Method} - {Message} in {Duration}",
                 methodBase.DeclaringType?.FullName,

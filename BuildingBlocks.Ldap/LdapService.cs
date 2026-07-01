@@ -42,9 +42,10 @@ namespace BuildingBlocks.Ldap
             InitializeConnectionPools();
 
             // Define the retry policy
+            var retryDelay = TimeSpan.FromMilliseconds(Math.Clamp(_config.First().Timeout, 250, 1000));
             _retryPolicy = Policy
                 .Handle<LdapException>()
-                .WaitAndRetryAsync(3, retryAttempt => TimeSpan.FromMilliseconds(_config.First().Timeout * retryAttempt),
+                .WaitAndRetryAsync(1, _ => retryDelay,
                     (exception, timeSpan, retryCount, context) =>
                     {
                         _logger.LogWarning($"Retry {retryCount} for LDAP operation due to: {exception.Message}");
@@ -313,7 +314,7 @@ namespace BuildingBlocks.Ldap
             {
                 var ex = e.Demystify();
                 _logger.LogError(ex, ex.LdapErrorMessage);
-                return new Error("500", ex.LdapErrorMessage, ex);
+                return CreateDirectoryUnavailableError(ex);
             }
             catch (Exception e)
             {
@@ -442,7 +443,7 @@ namespace BuildingBlocks.Ldap
             {
                 var ex = e.Demystify();
                 _logger.LogError(ex, ex.LdapErrorMessage);
-                return new Error("500", ex.LdapErrorMessage, ex);
+                return CreateDirectoryUnavailableError(ex);
             }
             catch (Exception e)
             {
@@ -508,7 +509,7 @@ namespace BuildingBlocks.Ldap
             {
                 var ex = e.Demystify();
                 _logger.LogError(ex, ex.LdapErrorMessage);
-                return new Error("500", ex.LdapErrorMessage, ex);
+                return CreateDirectoryUnavailableError(ex);
             }
             catch (Exception e)
             {
@@ -535,6 +536,7 @@ namespace BuildingBlocks.Ldap
             var ldapConfig = _config.First(); // Simplified: Select the first LDAP config
             var connection = await GetConnectionFromPoolAsync(ldapConfig);
             Result<LdapEntry, Error> userEntryResult;
+            var attemptedUserCredentialBind = false;
 
             try
             {
@@ -564,6 +566,7 @@ namespace BuildingBlocks.Ldap
                     return new Error("404", "User not found in any LDAP.");
                 }
 
+                attemptedUserCredentialBind = true;
                 await connection.BindAsync(userEntryResult.Value.Dn, password);
                 if (!connection.Bound)
                 {
@@ -578,6 +581,11 @@ namespace BuildingBlocks.Ldap
             {
                 var ex = e.Demystify();
                 _logger.LogError(ex, "LDAP connection or authentication error: {Error}", ex.LdapErrorMessage);
+                if (!attemptedUserCredentialBind)
+                {
+                    return CreateDirectoryUnavailableError(ex);
+                }
+
                 return new Error("500", ex.LdapErrorMessage, ex);
             }
             finally
@@ -611,7 +619,7 @@ namespace BuildingBlocks.Ldap
             {
                 var ex = e.Demystify();
                 _logger.LogError(ex, "Error while performing LDAP search.");
-                return new Error("500", ex.LdapErrorMessage);
+                return CreateDirectoryUnavailableError(ex);
             }
             catch (Exception e)
             {
@@ -663,6 +671,11 @@ namespace BuildingBlocks.Ldap
             var ex = e.Demystify();
             _logger.LogError(ex, ex.Message);
             return new Error("500", ex.Message, ex);
+        }
+
+        private static Error CreateDirectoryUnavailableError(Exception exception)
+        {
+            return new Error("DIRECTORY_UNAVAILABLE", "Directory lookup failed.", exception);
         }
     }
 }

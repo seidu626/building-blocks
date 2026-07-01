@@ -42,7 +42,7 @@ public class LdapConfig
     /// <summary>
     /// Timeout in milliseconds
     /// </summary>
-    public int Timeout { get; set; } = 120000;
+    public int Timeout { get; set; } = 5000;
 
     public int MaxPoolSize { get; set; } = 10;
 

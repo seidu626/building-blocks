@@ -282,8 +282,10 @@ namespace BuildingBlocks.Ldap.UserStore
                 return await _circuitBreakerPolicy.ExecuteAsync(async () =>
                 {
                     var result = await action();
+                    var shouldCacheFailure = result.IsFailure && IsCacheableDirectoryLookupFailure(result.Error);
+
                     await CacheLookupResultAsync(result, GetRedisKey(keyType, key),
-                        shouldCacheFailure: IsCacheableDirectoryLookupFailure(result.Error));
+                        shouldCacheFailure: shouldCacheFailure);
 
                     return result;
                 });

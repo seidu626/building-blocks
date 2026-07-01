@@ -97,6 +97,7 @@ public class ActiveDirectoryAppUser : IAppUser
             GetClaimFromLdapAttributes(user, "name", ActiveDirectoryLdapAttributes.DisplayName),
             GetClaimFromLdapAttributes(user, "family_name", ActiveDirectoryLdapAttributes.LastName),
             GetClaimFromLdapAttributes(user, "given_name", ActiveDirectoryLdapAttributes.FirstName),
+            GetClaimFromLdapAttributes(user, "preferred_username", ActiveDirectoryLdapAttributes.UserName),
             GetClaimFromLdapAttributes(user, "email", ActiveDirectoryLdapAttributes.EMail),
             GetClaimFromLdapAttributes(user, "phone_number", ActiveDirectoryLdapAttributes.TelephoneNumber),
             GetClaimFromLdapAttributes(user, "fullName", ActiveDirectoryLdapAttributes.FullName),
