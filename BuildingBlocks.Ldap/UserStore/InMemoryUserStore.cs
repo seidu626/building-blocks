@@ -68,9 +68,16 @@ namespace BuildingBlocks.Ldap.UserStore
             IdentifierType identifierType,
             string domain)
         {
-            var cacheKey = BuildLookupKey(identifierType.ToString(), BuildCredentialsLookupKey(username, domain));
-            return await FindAndCacheAsync(cacheKey, () =>
-                _authenticationService.Login(username, password, identifierType, domain));
+            // Every credential check goes to the directory. The lookup cache is keyed by identifier, not
+            // password, so answering from it here accepted any password for an identifier for five
+            // minutes after its last successful sign-in.
+            var result = await _authenticationService.Login(username, password, identifierType, domain);
+            if (result.IsSuccess && result.Value != null)
+            {
+                CacheProviderUser(result.Value);
+            }
+
+            return result;
         }
 
         public async Task<Result<TUser, Error>> FindBySubjectIdAsync(string? subjectId)
@@ -290,16 +297,6 @@ namespace BuildingBlocks.Ldap.UserStore
         private static string BuildLookupKey(string keyType, string? key)
         {
             return $"{keyType}/{key}";
-        }
-
-        private static string BuildCredentialsLookupKey(string? username, string? domain)
-        {
-            if (string.IsNullOrWhiteSpace(domain))
-            {
-                return username ?? string.Empty;
-            }
-
-            return $"{domain}:{username}";
         }
 
         private TUser? TryGetProviderCachedUser(Func<TUser, bool> predicate)
