@@ -256,6 +256,11 @@ namespace BuildingBlocks.Ldap
 
                 return await managerSearchResults.HasMoreAsync() ? await managerSearchResults.NextAsync() : null;
             }
+            catch (KeyNotFoundException)
+            {
+                // The entry has no manager attribute, which is ordinary and not an error.
+                return null;
+            }
             catch (Exception e)
             {
                 var ex = e.Demystify();
